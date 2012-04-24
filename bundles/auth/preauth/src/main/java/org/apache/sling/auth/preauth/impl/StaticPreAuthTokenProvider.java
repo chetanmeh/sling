@@ -20,6 +20,7 @@ package org.apache.sling.auth.preauth.impl;
 import org.apache.felix.scr.annotations.*;
 import org.apache.sling.auth.preauth.PreAuthTokenProvider;
 import org.apache.sling.commons.osgi.OsgiUtil;
+import org.osgi.framework.Constants;
 
 import java.util.Map;
 
@@ -30,6 +31,8 @@ import java.util.Map;
  */
 @Component(metatype = true, policy = ConfigurationPolicy.REQUIRE, label = "%preauth.name", description = "%preauth.description")
 @Service
+@org.apache.felix.scr.annotations.Properties({
+        @Property(name = Constants.SERVICE_RANKING, intValue = 0, propertyPrivate = false)})
 public class StaticPreAuthTokenProvider implements PreAuthTokenProvider {
 
     /**
