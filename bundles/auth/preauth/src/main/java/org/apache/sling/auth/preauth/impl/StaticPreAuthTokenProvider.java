@@ -34,7 +34,6 @@ import java.util.Map;
 @org.apache.felix.scr.annotations.Properties({
         @Property(name = Constants.SERVICE_RANKING, intValue = 0, propertyPrivate = false)})
 public class StaticPreAuthTokenProvider implements PreAuthTokenProvider {
-
     /**
      * The default trusted credentials attribute name.
      */
@@ -46,7 +45,8 @@ public class StaticPreAuthTokenProvider implements PreAuthTokenProvider {
     private String trustedCredentialsAttribute;
 
     @Activate
-    private void activate(Map<String, Object> config){
+    @Modified
+    private synchronized void activate(Map<String, Object> config){
         this.trustedCredentialsAttribute = OsgiUtil.toString(
                         config.get(PROPERTY_TRUSTED_CREDENTIALS_ATTRIBUTE),
                         DEFAULT_TRUSTED_CREDENTIALS_ATTRIBUTE);
