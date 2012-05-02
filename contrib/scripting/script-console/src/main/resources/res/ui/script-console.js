@@ -1,6 +1,7 @@
 //Codemirror editor
 var inputEditor
 var outputEditor
+var OUTPUT_SEP = '\n------------------\n'
 
 function sendData(url, data) {
     $.ajax({
@@ -26,18 +27,26 @@ function sendData(url, data) {
 
 function renderData(data){
     $('#code-output').show();
-    var dataText = data.replace(/\r\n/g,'\n')
-//    $('#result').text(dataText);
-    outputEditor.setValue(dataText)
+    var currentData = outputEditor.getValue()
+    //If we need to append the data then use below
+    //For now we just replace the existing output
+    //var outData = data + OUTPUT_SEP+ currentData
+
+    outputEditor.setValue(data)
 }
 
 function setUpCodeMirror() {
     CodeMirror.modeURL = pluginRoot + "/res/ui/codemirror/mode/%N/%N.js";
     inputEditor = CodeMirror.fromTextArea(document.getElementById("code"), {
-        lineNumbers:true
+        lineNumbers:true,
+        extraKeys: {
+            'Ctrl-Q':clearOutput,
+            'Ctrl-X':executeScript
+        }
     });
     outputEditor = CodeMirror.fromTextArea(document.getElementById("result"), {
-            lineNumbers:true
+            lineNumbers:true,
+            readOnly:"nocursor"
         });
 }
 
@@ -60,14 +69,14 @@ function setUpLangOptions() {
     var options = codeLang.attr('options');
     codeLang.empty()
 
-    for(var index in scriptConfig){
-        var config = scriptConfig[index]
+    for(var i in scriptConfig){
+        var config = scriptConfig[i]
         var opt = new Option(config.langName,config.langCode);
         if(config.mode){
             opt.langMode = config.mode;
         }
         options[options.length] = opt
-    };
+    }
     $('#codeLang').change(function(){
         var opt = $(this).find(":selected");
         updateWithOption(opt)
@@ -77,12 +86,17 @@ function setUpLangOptions() {
     updateWithOption($(options[0]))
 }
 
-$(document).ready(function () {
-    $("#executeButton").click(function () {
-        inputEditor.save() //Copy the contents to textarea
-        sendData(pluginRoot, $("#consoleForm").serialize());
-    });
+function executeScript(){
+    inputEditor.save() //Copy the contents to textarea form field
+    sendData(pluginRoot, $("#consoleForm").serialize());
+}
 
+function clearOutput(){
+    outputEditor.setValue('')
+}
+
+$(document).ready(function () {
+    $("#executeButton").click(executeScript);
     $('#ajaxSpinner').hide();
     $('#code-output').hide();
     setUpCodeMirror();
