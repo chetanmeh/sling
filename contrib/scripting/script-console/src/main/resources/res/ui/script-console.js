@@ -31,7 +31,6 @@ function renderData(data){
     outputEditor.setValue(dataText)
 }
 
-
 function setUpCodeMirror() {
     CodeMirror.modeURL = pluginRoot + "/res/ui/codemirror/mode/%N/%N.js";
     inputEditor = CodeMirror.fromTextArea(document.getElementById("code"), {
@@ -40,8 +39,42 @@ function setUpCodeMirror() {
     outputEditor = CodeMirror.fromTextArea(document.getElementById("result"), {
             lineNumbers:true
         });
-    inputEditor.setOption("mode", "groovy");
-    CodeMirror.autoLoadMode(inputEditor, "groovy");
+}
+
+function updateWithOption(opt){
+    setLangMode(inputEditor,opt.attr('langMode'))
+    $('[name=lang]').val(opt.val())
+}
+
+function setLangMode(editor, modeName) {
+    if(!modeName){
+        modeName = "text/plain"
+    }else{
+        CodeMirror.autoLoadMode(inputEditor, modeName);
+    }
+    editor.setOption("mode", modeName);
+}
+
+function setUpLangOptions() {
+    var codeLang = $('#codeLang')
+    var options = codeLang.attr('options');
+    codeLang.empty()
+
+    for(var index in scriptConfig){
+        var config = scriptConfig[index]
+        var opt = new Option(config.langName,config.langCode);
+        if(config.mode){
+            opt.langMode = config.mode;
+        }
+        options[options.length] = opt
+    };
+    $('#codeLang').change(function(){
+        var opt = $(this).find(":selected");
+        updateWithOption(opt)
+    });
+
+    $('#codeLang option:eq(0)').attr('selected','selected')
+    updateWithOption($(options[0]))
 }
 
 $(document).ready(function () {
@@ -53,4 +86,5 @@ $(document).ready(function () {
     $('#ajaxSpinner').hide();
     $('#code-output').hide();
     setUpCodeMirror();
+    setUpLangOptions();
 });

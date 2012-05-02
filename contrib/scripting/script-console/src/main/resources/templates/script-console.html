@@ -4,7 +4,7 @@
 <script type="text/javascript" src="${pluginRoot}/res/ui/script-console.js"></script>
 <script type="text/javascript">
 // <![CDATA[
-
+var scriptConfig = ${__scriptConfig__};
 // ]]>
 </script>
 
@@ -13,6 +13,10 @@
 <div class="ui-widget-header ">
     <img id="ajaxSpinner" src="${appRoot}/res/imgs/loading.gif" tile="Working..." />
     <button type="button" id="executeButton">${console.execute}</button>
+    <button type="button" id="langButton">${console.lang}</button>
+    <select id="codeLang">
+        <option></option>
+    </select>
 </div>
 <div id="splitter" >
     <div id="code-input">
@@ -20,7 +24,7 @@
             <textarea id="code" name="code"
                       style="width: 90%; height: 7em; "></textarea>
             <input type="hidden" name="client" value="webconsole" />
-            <input type="hidden" name="lang" value="groovy" />
+            <input type="hidden" name="lang" value="" />
         </form>
     </div>
     <div id="code-output">
