@@ -66,6 +66,8 @@
         -->
         <jetty.sling.context>/</jetty.sling.context>
 
+        <oak.version>0.5-SNAPSHOT</oak.version>
+        <jackrabbit.version>2.6-SNAPSHOT</jackrabbit.version>
     </properties>
 
     <build>
