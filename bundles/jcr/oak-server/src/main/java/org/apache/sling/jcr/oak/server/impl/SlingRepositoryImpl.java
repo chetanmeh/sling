@@ -125,21 +125,47 @@ public class SlingRepositoryImpl
      * @see javax.jcr.Repository#login(javax.jcr.Credentials)
      */
     public Session login(Credentials credentials) throws RepositoryException {
-        return this.getNamespaceAwareSession(delegatee.login(credentials));
+        Thread thread = Thread.currentThread();
+        ClassLoader loader = thread.getContextClassLoader();
+        try {
+            thread.setContextClassLoader(
+                    ContentRepositoryImpl.class.getClassLoader());
+            return this.getNamespaceAwareSession(delegatee.login(credentials));
+        } finally {
+            thread.setContextClassLoader(loader);
+        }
     }
 
     /**
      * @see javax.jcr.Repository#login(String)
      */
     public Session login(String workspaceName) throws RepositoryException {
-        return this.getNamespaceAwareSession(delegatee.login(workspaceName));
+        Thread thread = Thread.currentThread();
+        ClassLoader loader = thread.getContextClassLoader();
+        try {
+            thread.setContextClassLoader(
+                    ContentRepositoryImpl.class.getClassLoader());
+            return this.getNamespaceAwareSession(delegatee.login(workspaceName));
+        } finally {
+            thread.setContextClassLoader(loader);
+        }
+
     }
 
     /**
      * @see javax.jcr.Repository#login()
      */
     public Session login() throws RepositoryException {
-        return this.getNamespaceAwareSession(delegatee.login());
+        Thread thread = Thread.currentThread();
+        ClassLoader loader = thread.getContextClassLoader();
+        try {
+            thread.setContextClassLoader(
+                    ContentRepositoryImpl.class.getClassLoader());
+            return this.getNamespaceAwareSession(delegatee.login());
+        } finally {
+            thread.setContextClassLoader(loader);
+        }
+
     }
 
 }
