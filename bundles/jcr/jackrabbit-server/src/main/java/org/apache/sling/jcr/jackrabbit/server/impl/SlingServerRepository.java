@@ -25,20 +25,21 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.Dictionary;
+import java.util.*;
 
 import javax.jcr.Credentials;
 import javax.jcr.Repository;
 import javax.jcr.RepositoryException;
 
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.ConfigurationPolicy;
+import org.apache.felix.scr.annotations.*;
 import org.apache.felix.scr.annotations.Properties;
-import org.apache.felix.scr.annotations.Property;
 import org.apache.jackrabbit.api.management.DataStoreGarbageCollector;
 import org.apache.jackrabbit.api.management.RepositoryManager;
 import org.apache.jackrabbit.core.RepositoryImpl;
+import org.apache.jackrabbit.core.config.BeanFactory;
+import org.apache.jackrabbit.core.config.ConfigurationException;
 import org.apache.jackrabbit.core.config.RepositoryConfig;
+import org.apache.jackrabbit.core.config.RepositoryConfigurationParser;
 import org.apache.sling.jcr.api.SlingRepository;
 import org.apache.sling.jcr.base.AbstractSlingRepository;
 import org.apache.sling.jcr.jackrabbit.server.impl.security.AdministrativeCredentials;
@@ -47,6 +48,9 @@ import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.log.LogService;
+import org.xml.sax.InputSource;
+
+import static org.apache.jackrabbit.core.config.RepositoryConfigurationParser.REPOSITORY_HOME_VARIABLE;
 
 /**
  * The <code>SlingServerRepository</code> TODO
@@ -89,6 +93,9 @@ public class SlingServerRepository extends AbstractSlingRepository
 
     @Property(value="")
     public static final String REPOSITORY_REGISTRATION_NAME = "name";
+
+    @Reference
+    private BeanFactory beanFactory;
 
     //---------- Repository Management ----------------------------------------
 
@@ -157,9 +164,9 @@ public class SlingServerRepository extends AbstractSlingRepository
                         log(LogService.LOG_INFO, "Using configuration file " + configFile.getAbsolutePath());
                     }
                 }
-                crc = RepositoryConfig.create(ins, home);
+                crc = create(new InputSource(ins), new File(home));
             } else {
-                crc = RepositoryConfig.create(homeFile);
+                crc =create(new InputSource(new File(homeFile, "repository.xml").toURI().toString()), new File(home));
             }
 
             return RepositoryImpl.create(crc);
@@ -187,6 +194,17 @@ public class SlingServerRepository extends AbstractSlingRepository
 
         // got no repository ....
         return null;
+    }
+
+    private RepositoryConfig create(InputSource xml, File dir) throws ConfigurationException {
+        java.util.Properties variables = new java.util.Properties(System.getProperties());
+        variables.setProperty(REPOSITORY_HOME_VARIABLE, dir.getPath());
+        RepositoryConfigurationParser parser =
+                new RepositoryConfigurationParser(variables);
+        parser.setBeanFactory(beanFactory);
+        RepositoryConfig config = parser.parseRepositoryConfig(xml);
+        config.init();
+        return config;
     }
 
     @Override
