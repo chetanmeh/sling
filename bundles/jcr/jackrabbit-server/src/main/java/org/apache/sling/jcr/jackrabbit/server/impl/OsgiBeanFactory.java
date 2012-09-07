@@ -48,23 +48,21 @@ public class OsgiBeanFactory implements BeanFactory{
 
     private Logger log = LoggerFactory.getLogger(getClass());
 
-    private Set<String> classNames = new HashSet<String>();
     private Map<String,Class> classNameMapping = new HashMap<String,Class>();
-    private Set<Class> dependencies = new HashSet<Class>();
     private Map<Class,Object> instances = new ConcurrentHashMap<Class, Object>();
 
     @Activate
     private void activate(BundleContext context) throws IOException, ConfigurationException {
         parseAndReadConfig(context);
 
-        log.info("Would be finding implementations for "+ dependencies);
+        log.info("Would be finding implementations for "+ classNameMapping.values());
         DependencyManager dm = new DependencyManager(context);
         Component c = dm.createComponent();
 
         c.setInterface(BeanFactory.class.getName(),new Properties())
          .setImplementation(this);
 
-        for(Class clazz : dependencies){
+        for(Class clazz : classNameMapping.values()){
             Dependency d = dm.createServiceDependency()
               .setService(clazz)
               .setRequired(true)
@@ -79,6 +77,8 @@ public class OsgiBeanFactory implements BeanFactory{
     /**
      * A hacky incorrect way to read the config. For proper implementation we should read config as managed in
      * org.apache.sling.jcr.jackrabbit.server.impl.SlingServerRepository#acquireRepository()
+     *
+     * This is just done to demonstrate working of concept!!
      */
     private void parseAndReadConfig(BundleContext context) throws ConfigurationException, IOException {
         URL u = context.getBundle().getResource("repository.xml");
@@ -118,7 +118,7 @@ public class OsgiBeanFactory implements BeanFactory{
         //Class[] interfaces = o.getClass().getInterfaces();
         String[] interfaces = (String[]) serviceReference.getProperty(Constants.OBJECTCLASS);
         for(String intf : interfaces){
-            if(classNames.contains(intf)){
+            if(classNameMapping.containsKey(intf)){
                 instances.put(classNameMapping.get(intf),o);
             }
         }
@@ -129,6 +129,14 @@ public class OsgiBeanFactory implements BeanFactory{
         instances.remove(o);
     }
 
+    /**
+     * Would be invoked by Felix DM if any dependency gets removed and it has to deregister
+     * the OsgiBeanFactory. In that case we clear our cached instances
+     */
+    private void stop(){
+        instances.clear();
+    }
+
 
 
     private class DepFinderBeanConfigVisitor implements BeanConfigVisitor {
@@ -136,10 +144,8 @@ public class OsgiBeanFactory implements BeanFactory{
         public void visit(BeanConfig config) {
             if(FACTORY_TYPE_OSGI.equals(config.getFactoryType())){
                 String className = config.getClassName();
-                classNames.add(className);
                 try {
                     Class clazz = getClass().getClassLoader().loadClass(className);
-                    dependencies.add(clazz);
                     classNameMapping.put(className,clazz);
                 } catch (ClassNotFoundException e) {
                     log.warn("Could not load class for "+className,e);
