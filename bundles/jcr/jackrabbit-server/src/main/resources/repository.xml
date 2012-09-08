@@ -19,7 +19,7 @@
 -->
 <!DOCTYPE Repository
           PUBLIC "-//The Apache Software Foundation//DTD Jackrabbit 2.0//EN"
-          "http://jackrabbit.apache.org/dtd/repository-2.0.dtd">
+          "http://jackrabbit.apache.org/dtd/repository-2.4.dtd">
 
 <Repository>
     <FileSystem class="org.apache.jackrabbit.core.fs.local.LocalFileSystem">
@@ -28,17 +28,17 @@
 
     <DataStore class="org.apache.jackrabbit.core.data.FileDataStore"/>
 
-    <Security appName="Jackrabbit">
+    <Security appName="Jackrabbit" jaasConfigProviderName="JavaLoginConfigOsgi">
         <SecurityManager class="org.apache.jackrabbit.core.DefaultSecurityManager" workspaceName="security">
         </SecurityManager>
 
         <AccessManager class="org.apache.sling.jcr.jackrabbit.server.impl.security.PluggableDefaultAccessManager">
         </AccessManager>
 
-        <LoginModule class="org.apache.sling.jcr.jackrabbit.server.impl.security.PluggableDefaultLoginModule">
+       <!-- <LoginModule class="org.apache.sling.jcr.jackrabbit.server.impl.security.PluggableDefaultLoginModule">
             <param name="anonymousId" value="anonymous"/>
             <param name="adminId" value="admin"/>
-        </LoginModule>
+        </LoginModule>-->
     </Security>
 
     <Workspaces rootPath="${rep.home}/workspaces" defaultWorkspace="default"/>
