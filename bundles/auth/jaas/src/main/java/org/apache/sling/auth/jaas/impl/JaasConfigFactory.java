@@ -43,10 +43,10 @@ public class JaasConfigFactory {
 
 
     @Property(value = "required",options = {
-        @PropertyOption(name = "required",value = "jaas.flag.required"),
-        @PropertyOption(name = "requisite",value = "jaas.flag.requisite"),
-        @PropertyOption(name = "sufficient",value = "jaas.flag.sufficient"),
-        @PropertyOption(name = "optional",value = "jaas.flag.optional")
+        @PropertyOption(name = "required",value = "%jaas.flag.required"),
+        @PropertyOption(name = "requisite",value = "%jaas.flag.requisite"),
+        @PropertyOption(name = "sufficient",value = "%jaas.flag.sufficient"),
+        @PropertyOption(name = "optional",value = "%jaas.flag.optional")
     })
     private static final String JAAS_CONTROL_FLAG = "jaas.controlFlag";
 
