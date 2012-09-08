@@ -34,7 +34,7 @@ import java.util.Properties;
         configurationFactory = true,
         metatype = true,
         immediate = true,
-        name = "org.apache.sling.auth.jaas.config"
+        name = "org.apache.sling.auth.jaas.Configuration"
 )
 public class JaasConfigFactory {
 
