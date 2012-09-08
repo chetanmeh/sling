@@ -427,6 +427,16 @@
         </bundle>
         <bundle>
             <groupId>org.apache.sling</groupId>
+            <artifactId>org.apache.sling.auth.jaas</artifactId>
+            <version>0.0.1-SNAPSHOT</version>
+        </bundle>
+        <bundle>
+            <groupId>org.apache.sling</groupId>
+            <artifactId>org.apache.sling.jcr.jackrabbit.principalprovider</artifactId>
+            <version>0.0.1-SNAPSHOT</version>
+        </bundle>
+        <bundle>
+            <groupId>org.apache.sling</groupId>
             <artifactId>org.apache.sling.jcr.jackrabbit.server</artifactId>
             <version>2.1.1-SNAPSHOT</version>
         </bundle>
