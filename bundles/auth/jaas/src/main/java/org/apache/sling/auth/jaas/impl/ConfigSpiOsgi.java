@@ -45,12 +45,13 @@ import java.util.*;
         description = "%jaas.spi.description",
         immediate = true,
         metatype = true,
+        name = "org.apache.sling.auth.jaas.ConfigurationSpi",
         policy = ConfigurationPolicy.REQUIRE)
 @References({
         @Reference(
                 name = "LoginModuleFactory",
                 referenceInterface = LoginModuleFactory.class,
-                cardinality = ReferenceCardinality.OPTIONAL_MULTIPLE,
+                cardinality = ReferenceCardinality.MANDATORY_MULTIPLE,
                 policy = ReferencePolicy.DYNAMIC)
 })
 @Service(value = ConfigurationSpi.class)
