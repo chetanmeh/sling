@@ -30,11 +30,13 @@ import java.util.Dictionary;
 import javax.jcr.Credentials;
 import javax.jcr.Repository;
 import javax.jcr.RepositoryException;
+import javax.security.auth.login.ConfigurationSpi;
 
 import org.apache.felix.scr.annotations.Component;
 import org.apache.felix.scr.annotations.ConfigurationPolicy;
 import org.apache.felix.scr.annotations.Properties;
 import org.apache.felix.scr.annotations.Property;
+import org.apache.felix.scr.annotations.Reference;
 import org.apache.jackrabbit.api.management.DataStoreGarbageCollector;
 import org.apache.jackrabbit.api.management.RepositoryManager;
 import org.apache.jackrabbit.core.RepositoryImpl;
@@ -89,6 +91,9 @@ public class SlingServerRepository extends AbstractSlingRepository
 
     @Property(value="")
     public static final String REPOSITORY_REGISTRATION_NAME = "name";
+
+    @Reference
+    private ConfigurationSpi configurationSpi;
 
     //---------- Repository Management ----------------------------------------
 
