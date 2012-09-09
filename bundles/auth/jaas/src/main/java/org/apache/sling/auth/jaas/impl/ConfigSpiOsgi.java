@@ -43,7 +43,7 @@ import java.util.*;
 @Component(
         label = "%jaas.spi.name",
         description = "%jaas.spi.description",
-        immediate = true,
+        immediate = false,
         metatype = true,
         name = "org.apache.sling.auth.jaas.ConfigurationSpi",
         policy = ConfigurationPolicy.REQUIRE)
@@ -185,7 +185,10 @@ public class ConfigSpiOsgi extends ConfigurationSpi {
     // ---------- JAAS/JCA/Security ----------------------------------------------
 
     private void deregisterFactory(ServiceReference ref) {
-        providerMap.remove(ref);
+        LoginModuleProvider lmp = providerMap.remove(ref);
+        if(lmp != null){
+            log.info("Deregistering LoginModuleFactory {}",lmp);
+        }
     }
 
     private void registerFactory(ServiceReference ref, LoginModuleFactory lmf) {
@@ -195,6 +198,7 @@ public class ConfigSpiOsgi extends ConfigurationSpi {
         }else{
             lmfExt = new OsgiLoginModuleProvider(ref,lmf);
         }
+        log.info("Registering LoginModuleFactory {}",lmf);
         providerMap.put(ref, lmfExt);
     }
 
