@@ -28,6 +28,7 @@ import java.util.HashMap;
 
 import javax.jcr.Credentials;
 import javax.jcr.SimpleCredentials;
+import javax.security.auth.spi.LoginModule;
 import javax.servlet.Servlet;
 import javax.servlet.ServletException;
 import javax.servlet.http.Cookie;
@@ -56,6 +57,7 @@ import org.apache.sling.auth.core.spi.AuthenticationHandler;
 import org.apache.sling.auth.core.spi.AuthenticationInfo;
 import org.apache.sling.auth.core.spi.DefaultAuthenticationFeedbackHandler;
 import org.apache.sling.auth.form.FormReason;
+import org.apache.sling.auth.jaas.LoginModuleFactory;
 import org.apache.sling.commons.osgi.OsgiUtil;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.Constants;
@@ -76,7 +78,7 @@ import org.slf4j.LoggerFactory;
     @Property(name = AuthenticationHandler.TYPE_PROPERTY, value = HttpServletRequest.FORM_AUTH, propertyPrivate = true),
     @Property(name = Constants.SERVICE_RANKING, intValue = 0, propertyPrivate = false) })
 @Service
-public class FormAuthenticationHandler extends AbstractAuthenticationHandler {
+public class FormAuthenticationHandler extends AbstractAuthenticationHandler  implements LoginModuleFactory{
 
     /**
      * The name of the parameter providing the login form URL.
@@ -621,6 +623,12 @@ public class FormAuthenticationHandler extends AbstractAuthenticationHandler {
             return (String) data;
         }
         return null;
+    }
+
+    // ---------- LoginModuleFactory support
+
+    public LoginModule createLoginModule() {
+        return new FormLoginModule(this);
     }
 
     // ---------- LoginModulePlugin support
