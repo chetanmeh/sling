@@ -71,7 +71,7 @@ class OsgiLoginModuleProvider implements LoginModuleProvider {
     @Override
     public String toString() {
         return "OsgiLoginModuleProvider{" +
-                "delegate=" + delegate.getClass().getName() +
+                "className=" + delegate.getClass().getName() +
                 ", ranking=" + ranking +
                 ", flag=" + flag +
                 ", realmName='" + realmName + '\'' +

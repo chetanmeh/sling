@@ -70,7 +70,7 @@ class ConfigLoginModuleProvider implements LoginModuleProvider {
     @Override
     public String toString() {
         return "ConfigLoginModuleProvider{" +
-                "controlFlag=" + controlFlag +
+                "flag=" + controlFlag +
                 ", ranking=" + ranking +
                 ", realmName='" + realmName + '\'' +
                 ", className='" + className + '\'' +
