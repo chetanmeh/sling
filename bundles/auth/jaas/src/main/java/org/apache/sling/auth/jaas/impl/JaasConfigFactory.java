@@ -24,6 +24,8 @@ import org.apache.sling.auth.jaas.LoginModuleFactory;
 import org.apache.sling.commons.osgi.PropertiesUtil;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceRegistration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.Properties;
@@ -59,6 +61,8 @@ public class JaasConfigFactory {
     @Property
     private static final String JAAS_REALM_NAME = "jaas.realmName";
 
+    private Logger log = LoggerFactory.getLogger(getClass());
+
     @Reference
     private LoginModuleCreator factory;
 
@@ -75,11 +79,13 @@ public class JaasConfigFactory {
         String realmName = trimToNull(PropertiesUtil.toString(config.get(JAAS_REALM_NAME),null));
 
         if(className == null){
-            throw new IllegalArgumentException("Class name for the LoginModule is required");
+           log.warn("Class name for the LoginModule is required. Configuration would be ignored"+config);
+           return;
         }
 
         LoginModuleProvider lmf =
-                new ConfigLoginModuleProvider(realmName,className,options,ControlFlag.from(flag).flag(),ranking,factory);
+                new ConfigLoginModuleProvider(realmName,className,options,
+                        ControlFlag.from(flag).flag(),ranking,factory, config);
 
         reg = context.registerService(LoginModuleFactory.class.getName(), lmf, new Properties());
 

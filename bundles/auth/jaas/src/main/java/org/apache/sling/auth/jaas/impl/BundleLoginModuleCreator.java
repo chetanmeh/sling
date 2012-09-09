@@ -74,6 +74,10 @@ public class BundleLoginModuleCreator implements LoginModuleCreator, BundleListe
         }
     }
 
+    public Map<String, LoginModuleInfo> getLoginModuleInfo() {
+        return Collections.unmodifiableMap(loginModuleInfo);
+    }
+
     // ---------- BundleListener interface -------------------------------------
 
     public void bundleChanged(BundleEvent event) {
@@ -114,6 +118,7 @@ public class BundleLoginModuleCreator implements LoginModuleCreator, BundleListe
         }
         
         refreshLoginModuleInfo();
+        JaasWebConsolePlugin.setLoginModuleCreator(this);
     }
 
     private boolean providesLoginModule(Bundle bundle){
@@ -153,6 +158,7 @@ public class BundleLoginModuleCreator implements LoginModuleCreator, BundleListe
 
     @Deactivate
     private void deactivate(BundleContext context){
+        JaasWebConsolePlugin.setLoginModuleCreator(null);
         bundleContext.removeBundleListener(this);
 
         synchronized (this.loginModuleBundles) {
@@ -163,7 +169,7 @@ public class BundleLoginModuleCreator implements LoginModuleCreator, BundleListe
 
     }
 
-    private static final class LoginModuleInfo {
+    static final class LoginModuleInfo {
         private final String className;
         private final Bundle bundle;
         private final Class<LoginModule> clazz;

@@ -39,4 +39,6 @@ public interface LoginModuleProvider extends LoginModuleFactory{
     int ranking();
 
     String realmName();
+
+    String getClassName();
 }

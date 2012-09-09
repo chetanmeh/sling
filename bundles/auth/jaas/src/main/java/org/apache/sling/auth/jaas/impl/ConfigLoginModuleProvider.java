@@ -33,12 +33,15 @@ class ConfigLoginModuleProvider implements LoginModuleProvider {
     private final String realmName;
     private final String className;
     private final LoginModuleCreator moduleCreator;
+    private final Map componentConfig;
 
     ConfigLoginModuleProvider(String realmName, String className,
                               Map options,
                               LoginModuleControlFlag controlFlag,
                               int order,
-                              LoginModuleCreator moduleCreator) {
+                              LoginModuleCreator moduleCreator,
+                              Map componentConfig) {
+        this.componentConfig = componentConfig;
         this.options = Collections.unmodifiableMap(options);
         this.controlFlag = controlFlag;
         this.ranking = order;
@@ -63,8 +66,16 @@ class ConfigLoginModuleProvider implements LoginModuleProvider {
         return realmName;
     }
 
+    public String getClassName() {
+        return className;
+    }
+
     public LoginModule createLoginModule() {
         return moduleCreator.newInstance(className);
+    }
+
+    public Map getComponentConfig() {
+        return componentConfig;
     }
 
     @Override

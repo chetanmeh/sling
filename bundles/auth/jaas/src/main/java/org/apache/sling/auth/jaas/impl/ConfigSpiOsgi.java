@@ -121,6 +121,10 @@ public class ConfigSpiOsgi extends ConfigurationSpi {
         this.configs = realmToConfigMap;
     }
 
+    public Map<String,List<AppConfigurationHolder>> getAllConfiguration(){
+        return Collections.unmodifiableMap(configs);
+    }
+
     // ---------- SCR integration ----------------------------------------------
 
     @Activate
@@ -143,12 +147,13 @@ public class ConfigSpiOsgi extends ConfigurationSpi {
         }
 
         registerProvider();
+        JaasWebConsolePlugin.setConfigSpi(this);
     }
 
     @Deactivate
     private void deactivate() {
         this.context = null;
-
+        JaasWebConsolePlugin.setConfigSpi(null);
         deregisterProvider();
 
         synchronized (unhandledProviders) {
@@ -247,7 +252,7 @@ public class ConfigSpiOsgi extends ConfigurationSpi {
             return ConfigSpiOsgi.this;
         }
     }
-    private static final class AppConfigurationHolder implements Comparable<AppConfigurationHolder> {
+    static final class AppConfigurationHolder implements Comparable<AppConfigurationHolder> {
         private static final String LOGIN_MODULE_CLASS = ProxyLoginModule.class.getName();
         private final LoginModuleProvider provider;
         private final int ranking;

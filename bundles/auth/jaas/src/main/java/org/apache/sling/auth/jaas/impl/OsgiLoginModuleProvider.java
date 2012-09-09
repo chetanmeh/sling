@@ -40,12 +40,14 @@ class OsgiLoginModuleProvider implements LoginModuleProvider {
     private final int ranking;
     private final LoginModuleControlFlag flag;
     private final String realmName;
+    private final ServiceReference serviceReference;
 
     public OsgiLoginModuleProvider(ServiceReference sr, LoginModuleFactory delegate){
         this.delegate = delegate;
         this.ranking = PropertiesUtil.toInteger(sr.getProperty(Constants.SERVICE_RANKING),0);
         this.flag = ControlFlag.from((String) sr.getProperty(LoginModuleFactory.JAAS_CONTROL_FLAG)).flag();
         this.realmName = (String) sr.getProperty(LoginModuleFactory.JAAS_REALM_NAME);
+        this.serviceReference = sr;
     }
 
     public Map<String,?> options() {
@@ -66,6 +68,14 @@ class OsgiLoginModuleProvider implements LoginModuleProvider {
 
     public LoginModule createLoginModule() {
         return delegate.createLoginModule();
+    }
+
+    public String getClassName(){
+        return delegate.getClass().getName();
+    }
+
+    public ServiceReference getServiceReference() {
+        return serviceReference;
     }
 
     @Override
