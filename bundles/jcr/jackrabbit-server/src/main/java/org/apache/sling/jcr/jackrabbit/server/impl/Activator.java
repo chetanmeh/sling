@@ -71,6 +71,8 @@ public class Activator implements BundleActivator, ServiceListener {
     // this field is only set on the first call to getLoginModules()
     private static ServiceTracker loginModuleTracker;
 
+    private ServiceTracker configSpiTracker;
+
     // the tracking count when the moduleCache has been filled
     private static int lastTrackingCount = -1;
 
@@ -128,7 +130,12 @@ public class Activator implements BundleActivator, ServiceListener {
         if (accessManagerFactoryTracker == null) {
             accessManagerFactoryTracker = new AccessManagerFactoryTracker(bundleContext);
         }
+
+        if(configSpiTracker == null){
+            configSpiTracker = new ConfigurationSpiTracker(context);
+        }
         accessManagerFactoryTracker.open();
+        configSpiTracker.open();
     }
 
     public void stop(BundleContext arg0) {
@@ -145,6 +152,11 @@ public class Activator implements BundleActivator, ServiceListener {
         if (accessManagerFactoryTracker != null) {
             accessManagerFactoryTracker.close();
             accessManagerFactoryTracker = null;
+        }
+
+        if(configSpiTracker != null){
+            configSpiTracker.close();
+            configSpiTracker = null;
         }
 
         // clear the bundle context field

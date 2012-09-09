@@ -93,7 +93,7 @@ public class SlingServerRepository extends AbstractSlingRepository
     public static final String REPOSITORY_REGISTRATION_NAME = "name";
 
     @Reference
-    private ConfigurationSpi configurationSpi;
+    private RepositoryStarter starter;
 
     //---------- Repository Management ----------------------------------------
 
