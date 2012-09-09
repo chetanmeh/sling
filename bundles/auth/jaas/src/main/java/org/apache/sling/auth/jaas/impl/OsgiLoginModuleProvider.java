@@ -53,7 +53,7 @@ class OsgiLoginModuleProvider implements LoginModuleProvider {
     }
 
     public LoginModuleControlFlag getControlFlag() {
-        return null;
+        return flag;
     }
 
     public int ranking() {
