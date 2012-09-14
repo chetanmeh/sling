@@ -431,8 +431,8 @@
             <version>1.0</version>
         </bundle>
         <bundle>
-            <groupId>org.apache.sling</groupId>
-            <artifactId>org.apache.sling.auth.jaas</artifactId>
+            <groupId>org.apache.felix</groupId>
+            <artifactId>org.apache.felix.jaas</artifactId>
             <version>0.0.1-SNAPSHOT</version>
         </bundle>
         <bundle>

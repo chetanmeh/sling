@@ -18,25 +18,8 @@
  */
 package org.apache.sling.auth.form.impl;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
-import java.util.Dictionary;
-import java.util.HashMap;
-
-import javax.jcr.Credentials;
-import javax.jcr.SimpleCredentials;
-import javax.security.auth.spi.LoginModule;
-import javax.servlet.Servlet;
-import javax.servlet.ServletException;
-import javax.servlet.http.Cookie;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import javax.servlet.http.HttpSession;
-
 import org.apache.commons.codec.binary.Base64;
+import org.apache.felix.jaas.LoginModuleFactory;
 import org.apache.felix.scr.annotations.Component;
 import org.apache.felix.scr.annotations.Properties;
 import org.apache.felix.scr.annotations.Property;
@@ -57,7 +40,6 @@ import org.apache.sling.auth.core.spi.AuthenticationHandler;
 import org.apache.sling.auth.core.spi.AuthenticationInfo;
 import org.apache.sling.auth.core.spi.DefaultAuthenticationFeedbackHandler;
 import org.apache.sling.auth.form.FormReason;
-import org.apache.sling.auth.jaas.LoginModuleFactory;
 import org.apache.sling.commons.osgi.OsgiUtil;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.Constants;
@@ -65,6 +47,23 @@ import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.component.ComponentContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import javax.jcr.Credentials;
+import javax.jcr.SimpleCredentials;
+import javax.security.auth.spi.LoginModule;
+import javax.servlet.Servlet;
+import javax.servlet.ServletException;
+import javax.servlet.http.Cookie;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+import java.io.File;
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.util.Dictionary;
+import java.util.HashMap;
 
 /**
  * The <code>FormAuthenticationHandler</code> class implements the authorization
@@ -78,7 +77,7 @@ import org.slf4j.LoggerFactory;
     @Property(name = AuthenticationHandler.TYPE_PROPERTY, value = HttpServletRequest.FORM_AUTH, propertyPrivate = true),
     @Property(name = Constants.SERVICE_RANKING, intValue = 0, propertyPrivate = false) })
 @Service
-public class FormAuthenticationHandler extends AbstractAuthenticationHandler  implements LoginModuleFactory{
+public class FormAuthenticationHandler extends AbstractAuthenticationHandler  implements LoginModuleFactory {
 
     /**
      * The name of the parameter providing the login form URL.
