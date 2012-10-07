@@ -63,7 +63,7 @@ public class DynamicPrincipalProviderRegistry implements PrincipalProviderRegist
     private Logger log = LoggerFactory.getLogger(getClass());
 
     private final Map<String, PrincipalProvider> providers = new ConcurrentHashMap<String, PrincipalProvider>();
-    private PrincipalProvider[] providerArray;
+    private PrincipalProvider[] providerArray = new PrincipalProvider[0];
 
     public PrincipalProvider registerProvider(Properties properties) throws RepositoryException {
         throw new UnsupportedOperationException("The PrincipalProvider are only registered as OSGi services");
@@ -78,8 +78,8 @@ public class DynamicPrincipalProviderRegistry implements PrincipalProviderRegist
     }
 
     public PrincipalProvider[] getProviders() {
-        //TODO Should we clone it
         return providerArray;
+//        return Arrays.copyOf(providerArray,providerArray.length);
     }
 
     private void bindPrincipalProvider(PrincipalProvider provider,Map config){
