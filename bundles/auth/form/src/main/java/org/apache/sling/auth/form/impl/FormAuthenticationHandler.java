@@ -18,6 +18,24 @@
  */
 package org.apache.sling.auth.form.impl;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.util.Dictionary;
+import java.util.HashMap;
+
+import javax.jcr.Credentials;
+import javax.jcr.SimpleCredentials;
+import javax.security.auth.spi.LoginModule;
+import javax.servlet.Servlet;
+import javax.servlet.ServletException;
+import javax.servlet.http.Cookie;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+
 import org.apache.commons.codec.binary.Base64;
 import org.apache.felix.jaas.LoginModuleFactory;
 import org.apache.felix.scr.annotations.Component;
@@ -47,23 +65,6 @@ import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.component.ComponentContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import javax.jcr.Credentials;
-import javax.jcr.SimpleCredentials;
-import javax.security.auth.spi.LoginModule;
-import javax.servlet.Servlet;
-import javax.servlet.ServletException;
-import javax.servlet.http.Cookie;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import javax.servlet.http.HttpSession;
-import java.io.File;
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
-import java.util.Dictionary;
-import java.util.HashMap;
 
 /**
  * The <code>FormAuthenticationHandler</code> class implements the authorization

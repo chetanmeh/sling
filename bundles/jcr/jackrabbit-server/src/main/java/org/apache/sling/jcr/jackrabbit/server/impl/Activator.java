@@ -16,6 +16,13 @@
  */
 package org.apache.sling.jcr.jackrabbit.server.impl;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.util.Hashtable;
+
 import org.apache.sling.jcr.base.AbstractSlingRepository;
 import org.apache.sling.jcr.base.util.RepositoryAccessor;
 import org.apache.sling.jcr.jackrabbit.base.security.PrincipalProviderTracker;
@@ -32,13 +39,6 @@ import org.osgi.service.cm.ConfigurationAdmin;
 import org.osgi.util.tracker.ServiceTracker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.util.Hashtable;
 
 /**
  * The <code>Activator</code> TODO
