@@ -18,6 +18,7 @@ package org.apache.sling.jcr.jackrabbit.server.impl;
 
 import org.apache.sling.jcr.base.AbstractSlingRepository;
 import org.apache.sling.jcr.base.util.RepositoryAccessor;
+import org.apache.sling.jcr.jackrabbit.base.security.PrincipalProviderTracker;
 import org.apache.sling.jcr.jackrabbit.server.security.LoginModulePlugin;
 import org.osgi.framework.BundleActivator;
 import org.osgi.framework.BundleContext;
@@ -84,6 +85,8 @@ public class Activator implements BundleActivator, ServiceListener {
     private String slingContext;
     private static AccessManagerFactoryTracker accessManagerFactoryTracker;
 
+    private static PrincipalProviderTracker principalProviderTracker;
+
     protected String getRepositoryName() {
     	String repoName = bundleContext.getProperty("sling.repository.name");
     	if (repoName != null) {
@@ -129,6 +132,11 @@ public class Activator implements BundleActivator, ServiceListener {
             accessManagerFactoryTracker = new AccessManagerFactoryTracker(bundleContext);
         }
         accessManagerFactoryTracker.open();
+
+        if(principalProviderTracker == null){
+            principalProviderTracker = new PrincipalProviderTracker(bundleContext);
+        }
+        principalProviderTracker.open();
     }
 
     public void stop(BundleContext arg0) {
@@ -145,6 +153,11 @@ public class Activator implements BundleActivator, ServiceListener {
         if (accessManagerFactoryTracker != null) {
             accessManagerFactoryTracker.close();
             accessManagerFactoryTracker = null;
+        }
+
+        if(principalProviderTracker != null){
+            principalProviderTracker.close();
+            principalProviderTracker = null;
         }
 
         // clear the bundle context field
@@ -208,6 +221,10 @@ public class Activator implements BundleActivator, ServiceListener {
 
     public static AccessManagerFactoryTracker getAccessManagerFactoryTracker() {
         return accessManagerFactoryTracker;
+    }
+
+    public static PrincipalProviderTracker getPrincipalProviderTracker(){
+        return principalProviderTracker;
     }
 
     // ---------- internal -----------------------------------------------------
