@@ -57,7 +57,13 @@ public abstract class Compiler {
 
     protected Node.Nodes pageNodes;
 
+    private final boolean defaultIsSession;
+
     // ------------------------------------------------------------ Constructor
+
+    public Compiler(boolean defaultIsSession) {
+        this.defaultIsSession = defaultIsSession;
+    }
 
     public void init(final JspCompilationContext ctxt) {
         this.ctxt = ctxt;
@@ -97,7 +103,7 @@ public abstract class Compiler {
 
         // Setup page info area
         pageInfo = new PageInfo(new BeanRepository(ctxt.getClassLoader(),
-                errDispatcher), ctxt.getJspFile());
+                errDispatcher), ctxt.getJspFile(), defaultIsSession);
 
         JspConfig jspConfig = options.getJspConfig();
         JspConfig.JspProperty jspProperty = jspConfig.findJspProperty(ctxt
@@ -391,6 +397,10 @@ public abstract class Compiler {
             }
         }
 
+    }
+    
+    protected boolean getDefaultIsSession() {
+        return defaultIsSession;
     }
 
     private static final class CleanVisitor extends Node.Visitor {

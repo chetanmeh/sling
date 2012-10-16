@@ -16,6 +16,9 @@
  */
 package org.apache.sling.jcr.jackrabbit.accessmanager.post;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 import javax.jcr.security.AccessControlEntry;
@@ -112,7 +115,10 @@ import org.apache.sling.jcr.jackrabbit.accessmanager.GetAcl;
 	@Property (name="sling.servlet.methods", 
 			value="GET"),
 	@Property (name="sling.servlet.selectors", 
-			value="acl"),
+			value={
+			"acl",
+			"tidy.acl"
+		}),
 	@Property (name="sling.servlet.extensions", 
 			value="json")
 })
@@ -131,13 +137,16 @@ public class GetAclServlet extends AbstractGetAclServlet implements GetAcl {
 	protected AccessControlEntry[] getAccessControlEntries(Session session, String absPath) throws RepositoryException {
 		AccessControlManager accessControlManager = AccessControlUtil.getAccessControlManager(session);
 		AccessControlPolicy[] policies = accessControlManager.getPolicies(absPath);
+        List<AccessControlEntry> allEntries = new ArrayList<AccessControlEntry>(); 
 		for (AccessControlPolicy accessControlPolicy : policies) {
 			if (accessControlPolicy instanceof AccessControlList) {
 				AccessControlEntry[] accessControlEntries = ((AccessControlList)accessControlPolicy).getAccessControlEntries();
-				return accessControlEntries;
+                for (AccessControlEntry accessControlEntry : accessControlEntries) {
+					allEntries.add(accessControlEntry);
+				}
 			}
 		}
-		return new AccessControlEntry[0];
+        return allEntries.toArray(new AccessControlEntry[allEntries.size()]);
 	}
 
 }

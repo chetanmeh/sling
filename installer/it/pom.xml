@@ -87,6 +87,10 @@
                             <value>${project.version}</value>
                         </property>
                         <property>
+                            <name>installer.api.version</name>
+                            <value>1.0-SNAPSHOT</value>
+                        </property>
+                        <property>
                             <name>installer.configuration.version</name>
                             <value>1.0.9-SNAPSHOT</value>
                         </property>
@@ -450,6 +454,12 @@
     </build>
 
     <dependencies>
+        <dependency>
+            <groupId>org.apache.sling</groupId>
+            <artifactId>org.apache.sling.installer.api</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <scope>provided</scope>
+        </dependency>
         <dependency>
             <groupId>org.apache.sling</groupId>
             <artifactId>org.apache.sling.installer.core</artifactId>

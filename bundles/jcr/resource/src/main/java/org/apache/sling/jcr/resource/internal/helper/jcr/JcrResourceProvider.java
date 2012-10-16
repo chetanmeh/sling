@@ -255,9 +255,9 @@ public class JcrResourceProvider
     }
 
     /**
-     * @see org.apache.sling.api.resource.QueriableResourceProvider#queryResources(java.lang.String, java.lang.String)
+     * @see org.apache.sling.api.resource.QueriableResourceProvider#queryResources(ResourceResolver, java.lang.String, java.lang.String)
      */
-    public Iterator<Map<String, Object>> queryResources(final String query, final String language) {
+    public Iterator<Map<String, Object>> queryResources(final ResourceResolver resolver, final String query, final String language) {
         checkClosed();
 
         final String queryLanguage = isSupportedQueryLanguage(language) ? language : DEFAULT_QUERY_LANGUAGE;
@@ -336,9 +336,9 @@ public class JcrResourceProvider
     }
 
     /**
-     * @see org.apache.sling.api.resource.AttributableResourceProvider#getAttributeNames()
+     * @see org.apache.sling.api.resource.AttributableResourceProvider#getAttributeNames(ResourceResolver)
      */
-    public Collection<String> getAttributeNames() {
+    public Collection<String> getAttributeNames(final ResourceResolver resolver) {
         this.checkClosed();
 
         final Set<String> names = new HashSet<String>();
@@ -352,9 +352,9 @@ public class JcrResourceProvider
     }
 
     /**
-     * @see org.apache.sling.api.resource.AttributableResourceProvider#getAttribute(java.lang.String)
+     * @see org.apache.sling.api.resource.AttributableResourceProvider#getAttribute(ResourceResolver, java.lang.String)
      */
-    public Object getAttribute(final String name) {
+    public Object getAttribute(final ResourceResolver resolver, final String name) {
         this.checkClosed();
 
         if ( JcrResourceProviderFactory.isAttributeVisible(name) ) {
@@ -387,7 +387,20 @@ public class JcrResourceProvider
         final Object nodeObj = (properties != null ? properties.get("jcr:primaryType") : null);
         final String nodeType = (nodeObj != null ? nodeObj.toString() : null);
         try {
-            final Node node = JcrResourceUtil.createPath(path, null, nodeType, this.session, false);
+            final int lastPos = path.lastIndexOf('/');
+            final Node parent;
+            if ( lastPos == 0 ) {
+                parent = this.session.getRootNode();
+            } else {
+                parent = (Node)this.session.getItem(path.substring(0, lastPos));
+            }
+            final String name = path.substring(lastPos + 1);
+            final Node node;
+            if ( nodeType != null ) {
+                node = parent.addNode(name, nodeType);
+            } else {
+                node = parent.addNode(name);
+            }
 
             if ( properties != null ) {
                 // create modifiable map
@@ -425,9 +438,9 @@ public class JcrResourceProvider
     }
 
     /**
-     * @see org.apache.sling.api.resource.ModifyingResourceProvider#revert()
+     * @see org.apache.sling.api.resource.ModifyingResourceProvider#revert(ResourceResolver)
      */
-    public void revert() {
+    public void revert(final ResourceResolver resolver) {
         try {
             this.session.refresh(false);
         } catch (final RepositoryException ignore) {
@@ -436,9 +449,9 @@ public class JcrResourceProvider
     }
 
     /**
-     * @see org.apache.sling.api.resource.ModifyingResourceProvider#commit()
+     * @see org.apache.sling.api.resource.ModifyingResourceProvider#commit(ResourceResolver)
      */
-    public void commit() throws PersistenceException {
+    public void commit(final ResourceResolver resolver) throws PersistenceException {
         try {
             this.session.save();
         } catch (final RepositoryException e) {
@@ -447,9 +460,9 @@ public class JcrResourceProvider
     }
 
     /**
-     * @see org.apache.sling.api.resource.ModifyingResourceProvider#hasChanges()
+     * @see org.apache.sling.api.resource.ModifyingResourceProvider#hasChanges(ResourceResolver)
      */
-    public boolean hasChanges() {
+    public boolean hasChanges(final ResourceResolver resolver) {
         try {
             return this.session.hasPendingChanges();
         } catch (final RepositoryException ignore) {
