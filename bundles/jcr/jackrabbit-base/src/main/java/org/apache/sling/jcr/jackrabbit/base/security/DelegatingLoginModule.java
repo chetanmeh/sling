@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.sling.jcr.jackrabbit.server.impl.security;
+package org.apache.sling.jcr.jackrabbit.base.security;
 
 
 import org.apache.jackrabbit.core.config.BeanConfig;
