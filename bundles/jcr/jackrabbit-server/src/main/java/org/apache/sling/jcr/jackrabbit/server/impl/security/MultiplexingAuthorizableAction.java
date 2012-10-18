@@ -24,37 +24,36 @@ import java.util.TreeMap;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 
-import org.apache.felix.scr.annotations.Activate;
 import org.apache.felix.scr.annotations.Component;
 import org.apache.felix.scr.annotations.Deactivate;
 import org.apache.felix.scr.annotations.Property;
+import org.apache.felix.scr.annotations.Reference;
+import org.apache.felix.scr.annotations.ReferenceCardinality;
+import org.apache.felix.scr.annotations.ReferencePolicy;
 import org.apache.felix.scr.annotations.Service;
 import org.apache.jackrabbit.api.security.user.Authorizable;
 import org.apache.jackrabbit.api.security.user.Group;
 import org.apache.jackrabbit.api.security.user.User;
 import org.apache.jackrabbit.core.security.user.action.AbstractAuthorizableAction;
 import org.apache.jackrabbit.core.security.user.action.AuthorizableAction;
-import org.osgi.framework.BundleContext;
-import org.osgi.framework.InvalidSyntaxException;
-import org.osgi.framework.ServiceReference;
-import org.osgi.util.tracker.ServiceTracker;
-import org.osgi.util.tracker.ServiceTrackerCustomizer;
+import org.apache.sling.commons.osgi.ServiceUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
 @Component
 @Service(value = AuthorizableAction.class)
+@Reference(name = "AuthorizableAction",
+        policy = ReferencePolicy.DYNAMIC,
+        cardinality = ReferenceCardinality.OPTIONAL_MULTIPLE,
+        referenceInterface = AuthorizableAction.class,
+        target = "(!(jackrabbit.extension=true))" //Do include this instance
+)
 @Property(name = "jackrabbit.extension",value="true")
-public class MultiplexingAuthorizableAction extends AbstractAuthorizableAction implements ServiceTrackerCustomizer {
+public class MultiplexingAuthorizableAction extends AbstractAuthorizableAction{
     private Logger log = LoggerFactory.getLogger(getClass());
 
-    private ServiceTracker tracker;
-
-    private BundleContext context;
-
-    private Map<ServiceReference,AuthorizableAction> actionMap = new TreeMap<ServiceReference, AuthorizableAction>();
-
+    private Map<Comparable<Object>,AuthorizableAction> actionMap = new TreeMap<Comparable<Object>, AuthorizableAction>();
     private AuthorizableAction[] actions = new AuthorizableAction[0];
 
     public void onCreate(User user, String password, Session session) throws RepositoryException {
@@ -88,48 +87,30 @@ public class MultiplexingAuthorizableAction extends AbstractAuthorizableAction i
         }
     }
 
-    @Activate
-    private void activate(BundleContext context) throws InvalidSyntaxException {
-        this.context = context;
-        this.tracker = new ServiceTracker(context,context.createFilter("(&(!(jackrabbit.extension=true))" +
-                "(objectClass=org.apache.jackrabbit.core.security.user.action.AuthorizableAction))"),this);
-        this.tracker.open();
-    }
-
     @Deactivate
     private void deactivate(){
-        if(tracker != null){
-            tracker.close();
-        }
         actionMap.clear();
-        actions = null;
     }
 
-    public Object addingService(ServiceReference ref) {
-        AuthorizableAction action = (AuthorizableAction) context.getService(ref);
-        synchronized (this){
-            actionMap.put(ref,action);
-            actions = actionMap.values().toArray(new AuthorizableAction[actionMap.size()]);
-        }
-        return action;
-    }
-
-    public void modifiedService(ServiceReference ref, Object o) {
-        synchronized (this){
-            actionMap.remove(ref);
-            actions = actionMap.values().toArray(new AuthorizableAction[actionMap.size()]);
-        }
-    }
-
-    public void removedService(ServiceReference ref, Object o) {
-        synchronized (this){
-            actionMap.remove(ref);
-            actionMap.put(ref, (AuthorizableAction) o);
-            actions = actionMap.values().toArray(new AuthorizableAction[actionMap.size()]);
-        }
-    }
-
-    public AuthorizableAction[] getActions() {
+    private AuthorizableAction[] getActions() {
         return actions;
     }
+
+    private void bindAuthorizableAction(AuthorizableAction action,Map<String,Object> config){
+        actionMap.put(ServiceUtil.getComparableForServiceRanking(config),action);
+        recreateActionArray();
+    }
+
+    private void unbindAuthorizableAction(AuthorizableAction action,Map<String,Object> config){
+        actionMap.remove(ServiceUtil.getComparableForServiceRanking(config));
+        recreateActionArray();
+    }
+
+    private void recreateActionArray(){
+        AuthorizableAction[] temp = actionMap.values().toArray(new AuthorizableAction[actionMap.size()]);
+        synchronized (this){
+            actions = temp;
+        }
+    }
+
 }
