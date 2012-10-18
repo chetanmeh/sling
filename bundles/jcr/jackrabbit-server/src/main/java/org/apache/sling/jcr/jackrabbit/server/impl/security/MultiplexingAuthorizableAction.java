@@ -18,8 +18,9 @@
  */
 package org.apache.sling.jcr.jackrabbit.server.impl.security;
 
+import java.util.Collection;
 import java.util.Map;
-import java.util.TreeMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
@@ -53,8 +54,7 @@ import org.slf4j.LoggerFactory;
 public class MultiplexingAuthorizableAction extends AbstractAuthorizableAction{
     private Logger log = LoggerFactory.getLogger(getClass());
 
-    private Map<Comparable<Object>,AuthorizableAction> actionMap = new TreeMap<Comparable<Object>, AuthorizableAction>();
-    private AuthorizableAction[] actions = new AuthorizableAction[0];
+    private Map<Comparable<Object>,AuthorizableAction> actionMap = new ConcurrentSkipListMap<Comparable<Object>, AuthorizableAction>();
 
     public void onCreate(User user, String password, Session session) throws RepositoryException {
         log.info("Created user {}", user.getID());
@@ -92,25 +92,17 @@ public class MultiplexingAuthorizableAction extends AbstractAuthorizableAction{
         actionMap.clear();
     }
 
-    private AuthorizableAction[] getActions() {
-        return actions;
+    private Collection<AuthorizableAction> getActions() {
+        return actionMap.values();
     }
 
     private void bindAuthorizableAction(AuthorizableAction action,Map<String,Object> config){
-        actionMap.put(ServiceUtil.getComparableForServiceRanking(config),action);
-        recreateActionArray();
+        actionMap.put(ServiceUtil.getComparableForServiceRanking(config), action);
     }
 
     private void unbindAuthorizableAction(AuthorizableAction action,Map<String,Object> config){
         actionMap.remove(ServiceUtil.getComparableForServiceRanking(config));
-        recreateActionArray();
     }
 
-    private void recreateActionArray(){
-        AuthorizableAction[] temp = actionMap.values().toArray(new AuthorizableAction[actionMap.size()]);
-        synchronized (this){
-            actions = temp;
-        }
-    }
 
 }
