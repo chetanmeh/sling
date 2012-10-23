@@ -102,6 +102,7 @@ public class OsgiBeanFactory implements BeanFactory, ServiceTrackerCustomizer {
     public void close() {
         if (beanFactoryReg != null) {
             beanFactoryReg.unregister();
+            beanFactoryReg = null;
         }
         tracker.close();
         dependencies.clear();
