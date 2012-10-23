@@ -28,7 +28,6 @@ import java.util.HashMap;
 
 import javax.jcr.Credentials;
 import javax.jcr.SimpleCredentials;
-import javax.security.auth.spi.LoginModule;
 import javax.servlet.Servlet;
 import javax.servlet.ServletException;
 import javax.servlet.http.Cookie;
@@ -37,7 +36,6 @@ import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 
 import org.apache.commons.codec.binary.Base64;
-import org.apache.felix.jaas.LoginModuleFactory;
 import org.apache.felix.scr.annotations.Component;
 import org.apache.felix.scr.annotations.Properties;
 import org.apache.felix.scr.annotations.Property;
@@ -78,7 +76,7 @@ import org.slf4j.LoggerFactory;
     @Property(name = AuthenticationHandler.TYPE_PROPERTY, value = HttpServletRequest.FORM_AUTH, propertyPrivate = true),
     @Property(name = Constants.SERVICE_RANKING, intValue = 0, propertyPrivate = false) })
 @Service
-public class FormAuthenticationHandler extends AbstractAuthenticationHandler  implements LoginModuleFactory {
+public class FormAuthenticationHandler extends AbstractAuthenticationHandler {
 
     /**
      * The name of the parameter providing the login form URL.
@@ -623,12 +621,6 @@ public class FormAuthenticationHandler extends AbstractAuthenticationHandler  im
             return (String) data;
         }
         return null;
-    }
-
-    // ---------- LoginModuleFactory support
-
-    public LoginModule createLoginModule() {
-        return new FormLoginModule(this);
     }
 
     // ---------- LoginModulePlugin support
