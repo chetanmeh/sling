@@ -99,7 +99,8 @@
                              org.apache.sling.jcr.jackrabbit.server.security.accessmanager;version=2.1.0,
                              org.apache.jackrabbit.core.security.principal;version=2.2.5,
                              org.apache.jackrabbit.core.security.authentication;version=2.2.5,
-                             org.apache.jackrabbit.core.security.authentication.token;version=2.2.5
+                             org.apache.jackrabbit.core.security.authentication.token;version=2.2.5,
+                             org.apache.jackrabbit.core.security.user.action;version=2.4.0
                         </Export-Package>
                         <Private-Package>
                             org.apache.sling.jcr.jackrabbit.server.impl.*,
@@ -139,7 +140,7 @@
                             org.apache.jackrabbit.commons.*,
                             org.apache.jackrabbit.spi.commons.*,
 
-                            org.apache.felix.jaas.boot,
+                            org.apache.felix.jaas.boot;resolution:=optional,
 
                             <!-- optional JDBC driver import -->
                             com.microsoft.sqlserver.jdbc;

@@ -29,7 +29,7 @@
     <DataStore class="org.apache.jackrabbit.core.data.FileDataStore"/>
 
     <Security appName="Jackrabbit">
-        <SecurityManager class="org.apache.sling.jcr.jackrabbit.server.impl.security.OsgiAwareSecurityManager" workspaceName="security">
+        <SecurityManager class="org.apache.jackrabbit.core.DefaultSecurityManager" workspaceName="security">
             <UserManager class="org.apache.jackrabbit.core.security.user.UserManagerImpl">
                 <param name="defaultDepth" value="1"/>
                 <param name="autoExpandTree" value="true"/>
@@ -40,12 +40,9 @@
         <AccessManager class="org.apache.sling.jcr.jackrabbit.server.impl.security.PluggableDefaultAccessManager">
         </AccessManager>
 
-        <LoginModule class="org.apache.sling.jcr.jackrabbit.base.security.DelegatingLoginModule">
+        <LoginModule class="org.apache.sling.jcr.jackrabbit.server.impl.security.PluggableDefaultLoginModule">
             <param name="anonymousId" value="anonymous"/>
             <param name="adminId" value="admin"/>
-            <param name="delegateLoginModuleClass" value="org.apache.sling.jcr.jackrabbit.server.security.SlingDefaultLoginModule"/>
-            <param name="appName" value="Jackrabbit"/>
-            <param name="providerName" value="FelixJaasProvider"/>
         </LoginModule>
     </Security>
 

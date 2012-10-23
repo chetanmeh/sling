@@ -197,11 +197,6 @@
             <artifactId>groovy-all</artifactId>
             <version>1.8.2</version>
         </bundle>
-        <bundle>
-            <groupId>org.apache.sling</groupId>
-            <artifactId>org.apache.sling.scripting.console</artifactId>
-            <version>1.0.0-SNAPSHOT</version>
-        </bundle>
 
         <!-- felix httpservice whiteboard -->
         <bundle>
@@ -434,11 +429,6 @@
             <groupId>org.apache.tika</groupId>
             <artifactId>tika-bundle</artifactId>
             <version>1.0</version>
-        </bundle>
-        <bundle>
-            <groupId>org.apache.felix</groupId>
-            <artifactId>org.apache.felix.jaas</artifactId>
-            <version>0.0.1-SNAPSHOT</version>
         </bundle>
         <bundle>
             <groupId>org.apache.sling</groupId>
