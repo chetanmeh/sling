@@ -28,6 +28,7 @@ import java.util.Hashtable;
 import org.apache.sling.jcr.base.AbstractSlingRepository;
 import org.apache.sling.jcr.base.util.RepositoryAccessor;
 import org.apache.sling.jcr.jackrabbit.base.config.OsgiBeanFactory;
+import org.apache.sling.jcr.jackrabbit.base.security.MultiplexingAuthorizableAction;
 import org.apache.sling.jcr.jackrabbit.base.security.PrincipalProviderTracker;
 import org.apache.sling.jcr.jackrabbit.server.security.LoginModulePlugin;
 import org.osgi.framework.BundleActivator;
@@ -93,6 +94,8 @@ public class Activator implements BundleActivator, ServiceListener {
 
     private OsgiBeanFactory beanFactory;
 
+    private MultiplexingAuthorizableAction authorizableActionTracker;
+
     protected String getRepositoryName() {
     	String repoName = bundleContext.getProperty("sling.repository.name");
     	if (repoName != null) {
@@ -143,6 +146,11 @@ public class Activator implements BundleActivator, ServiceListener {
             principalProviderTracker = new PrincipalProviderTracker(bundleContext);
         }
         principalProviderTracker.open();
+
+        if(authorizableActionTracker == null){
+            authorizableActionTracker = new MultiplexingAuthorizableAction(bundleContext);
+        }
+        authorizableActionTracker.open();
     }
 
     public void stop(BundleContext arg0) {
@@ -169,6 +177,11 @@ public class Activator implements BundleActivator, ServiceListener {
         if(beanFactory != null){
             beanFactory.close();
             beanFactory = null;
+        }
+
+        if(authorizableActionTracker != null){
+            authorizableActionTracker.close();
+            authorizableActionTracker = null;
         }
 
         // clear the bundle context field
