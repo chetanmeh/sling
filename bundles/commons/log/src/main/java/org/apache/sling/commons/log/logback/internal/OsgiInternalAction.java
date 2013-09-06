@@ -25,6 +25,8 @@ import java.util.Collections;
 import java.util.List;
 
 import ch.qos.logback.core.joran.action.Action;
+import ch.qos.logback.core.joran.event.EndEvent;
+import ch.qos.logback.core.joran.event.InPlayListener;
 import ch.qos.logback.core.joran.event.SaxEvent;
 import ch.qos.logback.core.joran.event.SaxEventRecorder;
 import ch.qos.logback.core.joran.spi.ActionException;
@@ -47,6 +49,8 @@ public class OsgiInternalAction extends Action {
 
     @Override
     public void begin(InterpretationContext ec, String name, Attributes attributes) throws ActionException {
+        ec.addInPlayListener(new ConfigCompleteListener());
+
         populateSubstitutionProperties(ec);
 
         // TO CHECK Should we add the config fragment at end
@@ -118,4 +122,22 @@ public class OsgiInternalAction extends Action {
             saxEventList.remove(recorder.saxEventList.size() - 1);
         }
     }
+
+    /**
+     * Logback does not provide any standard hook point through which we can be
+     * notified of config complete. Hence as a work around we listen for EndEvent for
+     * 'configuration' tag and then fire the listeners
+     */
+    private class ConfigCompleteListener implements InPlayListener {
+        private static final String CONFIG_TAG = "configuration";
+        @Override
+        public void inPlay(SaxEvent event) {
+            if(event instanceof EndEvent
+                    && event.qName.equalsIgnoreCase(CONFIG_TAG)){
+                getLogbackManager().fireResetCompleteListeners();
+            }
+        }
+    }
+
+
 }

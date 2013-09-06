@@ -217,7 +217,8 @@ public class LogConfigManager implements LogbackResetListener, LogConfig.LogWrit
 
     // ---------- Logback reset listener
 
-    public void onReset(LoggerContext context) {
+    @Override
+    public void onResetStart(LoggerContext context) {
         Map<String, Appender<ILoggingEvent>> appendersByName = new HashMap<String, Appender<ILoggingEvent>>();
         Map<Appender, LoggerSpecificEncoder> encoders = new HashMap<Appender, LoggerSpecificEncoder>();
         for (LogConfig config : getLogConfigs()) {
@@ -257,6 +258,11 @@ public class LogConfigManager implements LogbackResetListener, LogConfig.LogWrit
         context.getLogger(Logger.ROOT_LOGGER_NAME).detachAppender(DEFAULT_CONSOLE_APPENDER_NAME);
     }
 
+    @Override
+    public void onResetComplete(LoggerContext context) {
+
+    }
+
     // ---------- Configuration support
 
     public void updateGlobalConfiguration(Dictionary<String, String> configuration) throws ConfigurationException {
@@ -290,25 +296,25 @@ public class LogConfigManager implements LogbackResetListener, LogConfig.LogWrit
      * <p>
      * The configuration object is expected to contain the following properties:
      * <dl>
-     * <dt>{@link java.util.logging.LogManager#LOG_FILE}</dt>
+     * <dt>{@link LogConfigManager#LOG_FILE}</dt>
      * <dd>The relative of absolute path/name of the file to log to. If this
      * property is missing or an empty string, the writer writes to standard
      * output</dd>
-     * <dt>{@link java.util.logging.LogManager#LOG_FILE_SIZE}</dt>
+     * <dt>{@link LogConfigManager#LOG_FILE_SIZE}</dt>
      * <dd>The maximum size of the log file to write before rotating the log
      * file. This property must be a number of be convertible to a number. The
      * actual value may also be suffixed by a size indicator <code>k</code>,
      * <code>kb</code>, <code>m</code>, <code>mb</code>, <code>g</code> or
      * <code>gb</code> representing the respective factors of kilo, mega and
      * giga.If this property is missing or cannot be converted to a number, the
-     * default value {@link java.util.logging.LogManager#LOG_FILE_SIZE_DEFAULT}
+     * default value {@link LogConfigManager#LOG_FILE_SIZE_DEFAULT}
      * is assumed. If the writer writes standard output this property is
      * ignored.</dd>
-     * <dt>{@link java.util.logging.LogManager#LOG_FILE_NUMBER}</dt>
+     * <dt>{@link LogConfigManager#LOG_FILE_NUMBER}</dt>
      * <dd>The maximum number of rotated log files to keep. This property must
      * be a number of be convertible to a number. If this property is missing or
      * cannot be converted to a number, the default value
-     * {@link java.util.logging.LogManager#LOG_FILE_NUMBER_DEFAULT} is assumed.
+     * {@link LogConfigManager#LOG_FILE_NUMBER_DEFAULT} is assumed.
      * If the writer writes standard output this property is ignored.</dd>
      * </dl>
      * 

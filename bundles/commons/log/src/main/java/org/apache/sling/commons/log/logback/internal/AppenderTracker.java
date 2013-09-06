@@ -71,6 +71,7 @@ public class AppenderTracker extends ServiceTracker implements LogbackResetListe
         AppenderInfo ai = appenders.remove(reference);
         detachAppender(ai);
         appenders.put(reference, new AppenderInfo(reference, (Appender<ILoggingEvent>) service));
+        attachAppender(ai);
     }
 
     @Override
@@ -121,10 +122,16 @@ public class AppenderTracker extends ServiceTracker implements LogbackResetListe
         }
     }
 
-    public void onReset(LoggerContext context) {
+    @Override
+    public void onResetStart(LoggerContext context) {
         for (AppenderInfo ai : appenders.values()) {
             attachAppender(ai);
         }
+    }
+
+    @Override
+    public void onResetComplete(LoggerContext context) {
+
     }
 
     @Override
