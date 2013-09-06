@@ -5,6 +5,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -38,6 +39,7 @@ import org.osgi.framework.Constants;
 import org.osgi.framework.InvalidSyntaxException;
 import org.osgi.framework.ServiceFactory;
 import org.osgi.framework.ServiceRegistration;
+import org.osgi.util.tracker.ServiceTracker;
 import org.slf4j.LoggerFactory;
 
 public class LogbackManager extends LoggerContextAwareBase {
@@ -78,7 +80,12 @@ public class LogbackManager extends LoggerContextAwareBase {
 
     private final ConfigSourceTracker configSourceTracker;
 
+    private final FilterTracker filterTracker;
+
+    private final TurboFilterTracker turboFilterTracker;
+
     private final List<ServiceRegistration> registrations = new ArrayList<ServiceRegistration>();
+    private final List<ServiceTracker> serviceTrackers = new ArrayList<ServiceTracker>();
 
     /**
      * Time at which reset started. Used as the threshold for logging error
@@ -96,7 +103,8 @@ public class LogbackManager extends LoggerContextAwareBase {
 
         this.appenderTracker = new AppenderTracker(bundleContext, getLoggerContext());
         this.configSourceTracker = new ConfigSourceTracker(bundleContext, this);
-
+        this.filterTracker = new FilterTracker(bundleContext,this);
+        this.turboFilterTracker = new TurboFilterTracker(bundleContext,getLoggerContext());
         // TODO Make it configurable
         // TODO: what should it be ?
         getLoggerContext().setName(contextName);
@@ -105,6 +113,14 @@ public class LogbackManager extends LoggerContextAwareBase {
         resetListeners.add(logConfigManager);
         resetListeners.add(appenderTracker);
         resetListeners.add(configSourceTracker);
+        resetListeners.add(filterTracker);
+        resetListeners.add(turboFilterTracker);
+
+        //Record trackers for shutdown later
+        serviceTrackers.add(appenderTracker);
+        serviceTrackers.add(configSourceTracker);
+        serviceTrackers.add(filterTracker);
+        serviceTrackers.add(turboFilterTracker);
 
         getLoggerContext().addListener(osgiIntegrationListener);
 
@@ -116,14 +132,18 @@ public class LogbackManager extends LoggerContextAwareBase {
     }
 
     public void shutdown() {
+        logConfigManager.close();
+
+        for(ServiceTracker tracker : serviceTrackers){
+            tracker.close();
+        }
+
         for (ServiceRegistration reg : registrations) {
             reg.unregister();
         }
 
-        appenderTracker.close();
-        configSourceTracker.close();
         getLoggerContext().removeListener(osgiIntegrationListener);
-        logConfigManager.close();
+
         getLoggerContext().stop();
     }
 
@@ -137,6 +157,12 @@ public class LogbackManager extends LoggerContextAwareBase {
         } else {
             configChanged.set(true);
             addInfo("LoggerContext reset in progress. Marking config changed to true");
+        }
+    }
+
+    public void fireResetCompleteListeners(){
+        for(LogbackResetListener listener : resetListeners){
+            listener.onResetComplete(getLoggerContext());
         }
     }
 
@@ -284,7 +310,7 @@ public class LogbackManager extends LoggerContextAwareBase {
 
             context.putObject(LogbackManager.class.getName(), LogbackManager.this);
             for (LogbackResetListener l : resetListeners) {
-                l.onReset(context);
+                l.onResetStart(context);
             }
         }
 
@@ -425,7 +451,7 @@ public class LogbackManager extends LoggerContextAwareBase {
 
         final Map<Appender<ILoggingEvent>, AppenderTracker.AppenderInfo> dynamicAppenders = new HashMap<Appender<ILoggingEvent>, AppenderTracker.AppenderInfo>();
 
-        private LoggerStateContext(List<Logger> allLoggers) {
+        LoggerStateContext(List<Logger> allLoggers) {
             this.allLoggers = allLoggers;
             for (AppenderTracker.AppenderInfo ai : getAppenderTracker().getAppenderInfos()) {
                 dynamicAppenders.put(ai.appender, ai);
@@ -450,6 +476,10 @@ public class LogbackManager extends LoggerContextAwareBase {
 
         Collection<Appender<ILoggingEvent>> getAllAppenders() {
             return appenders.values();
+        }
+
+        Map<String,Appender<ILoggingEvent>> getAppenderMap(){
+            return Collections.unmodifiableMap(appenders);
         }
     }
 
