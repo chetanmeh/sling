@@ -48,6 +48,7 @@ public class FilterTracker extends ServiceTracker implements LogbackResetListene
         super(context, createFilter(), null);
         this.logbackManager = logbackManager;
         this.loggerContext = logbackManager.getLoggerContext();
+        super.open();
     }
 
     @SuppressWarnings("unchecked")

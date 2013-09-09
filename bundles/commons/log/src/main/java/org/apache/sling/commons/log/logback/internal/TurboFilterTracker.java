@@ -24,6 +24,7 @@ import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceReference;
 import org.osgi.util.tracker.ServiceTracker;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -34,6 +35,7 @@ public class TurboFilterTracker extends ServiceTracker implements LogbackResetLi
     public TurboFilterTracker(BundleContext context, LoggerContext loggerContext) {
         super(context, TurboFilter.class.getName(), null);
         this.loggerContext = loggerContext;
+        super.open();
     }
 
     @Override
@@ -68,6 +70,10 @@ public class TurboFilterTracker extends ServiceTracker implements LogbackResetLi
     @Override
     public void onResetComplete(LoggerContext context) {
 
+    }
+
+    public Map<ServiceReference, TurboFilter> getFilters() {
+        return Collections.unmodifiableMap(filters);
     }
 
     private void attachFilter(TurboFilter tf) {

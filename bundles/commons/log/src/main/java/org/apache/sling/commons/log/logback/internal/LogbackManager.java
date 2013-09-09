@@ -23,6 +23,7 @@ import ch.qos.logback.classic.joran.JoranConfigurator;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.classic.spi.LoggerContextAwareBase;
 import ch.qos.logback.classic.spi.LoggerContextListener;
+import ch.qos.logback.classic.turbo.TurboFilter;
 import ch.qos.logback.classic.util.EnvUtil;
 import ch.qos.logback.core.Appender;
 import ch.qos.logback.core.joran.GenericConfigurator;
@@ -39,6 +40,7 @@ import org.osgi.framework.BundleContext;
 import org.osgi.framework.Constants;
 import org.osgi.framework.InvalidSyntaxException;
 import org.osgi.framework.ServiceFactory;
+import org.osgi.framework.ServiceReference;
 import org.osgi.framework.ServiceRegistration;
 import org.osgi.util.tracker.ServiceTracker;
 import org.slf4j.LoggerFactory;
@@ -453,11 +455,14 @@ public class LogbackManager extends LoggerContextAwareBase {
 
         final Map<Appender<ILoggingEvent>, AppenderTracker.AppenderInfo> dynamicAppenders = new HashMap<Appender<ILoggingEvent>, AppenderTracker.AppenderInfo>();
 
+        final Map<ServiceReference,TurboFilter> turboFilters;
+
         LoggerStateContext(List<Logger> allLoggers) {
             this.allLoggers = allLoggers;
             for (AppenderTracker.AppenderInfo ai : getAppenderTracker().getAppenderInfos()) {
                 dynamicAppenders.put(ai.appender, ai);
             }
+            this.turboFilters = turboFilterTracker.getFilters();
         }
 
         int getNumberOfLoggers() {
@@ -474,6 +479,15 @@ public class LogbackManager extends LoggerContextAwareBase {
 
         boolean isDynamicAppender(Appender<ILoggingEvent> a) {
             return dynamicAppenders.containsKey(a);
+        }
+
+        ServiceReference getTurboFilterRef(TurboFilter tf){
+            for(Map.Entry<ServiceReference,TurboFilter> e : turboFilters.entrySet()){
+                if(e.getValue().equals(tf)){
+                    return e.getKey();
+                }
+            }
+            return null;
         }
 
         Collection<Appender<ILoggingEvent>> getAllAppenders() {
