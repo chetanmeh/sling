@@ -380,12 +380,6 @@ public class SlingLogPanel extends HttpServlet {
     }
 
     private static String getName(Appender<ILoggingEvent> appender) {
-        // For legacy config based appender the appender name is the file
-        // name. So omit the appender name
-        if (appender instanceof SlingRollingFileAppender) {
-            return "File : " + ((FileAppender) appender).getFile();
-        }
-
         // For normal file appender we also display the name of appender
         if (appender instanceof FileAppender) {
             return String.format("File : [%s] %s", appender.getName(), ((FileAppender) appender).getFile());

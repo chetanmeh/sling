@@ -304,8 +304,9 @@ public class LogbackManager extends LoggerContextAwareBase {
             // Attach a console appender to handle logging untill we configure
             // one. This would be removed in LogConfigManager.reset
             final Logger rootLogger = getLoggerContext().getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
-            rootLogger.addAppender(logConfigManager.getDefaultAppender());
             rootLogger.setLevel(Level.INFO);
+            rootLogger.addAppender(logConfigManager.getDefaultAppender());
+
 
             // Now record the time of reset with a default appender attached to
             // root logger. We also add a milli second extra to account for logs which would have
