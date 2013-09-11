@@ -215,16 +215,21 @@ public class LogbackManager extends LoggerContextAwareBase {
         JoranConfigurator configurator = createConfigurator();
         final List<SaxEvent> eventList = configurator.recallSafeConfiguration();
         final long threshold = System.currentTimeMillis();
-
+        boolean success = false;
         try {
             cb.perform(configurator);
             if (statusUtil.hasXMLParsingErrors(threshold)) {
                 cb.fallbackConfiguration(eventList, createConfigurator(), statusListener);
             }
             addInfo("Context: " + getLoggerContext().getName() + " reloaded.");
-        } catch (JoranException je) {
-            cb.fallbackConfiguration(eventList, createConfigurator(), statusListener);
+            success = true;
+        } catch (Throwable t) {
+            //Need to catch any error as Logback must work in all scenarios
+            addError("Error configuring Logback",t);
         } finally {
+            if(!success){
+                cb.fallbackConfiguration(eventList, createConfigurator(), statusListener);
+            }
             getStatusManager().remove(statusListener);
             StatusPrinter.printInCaseOfErrorsOrWarnings(getLoggerContext(), resetStartTime);
         }
