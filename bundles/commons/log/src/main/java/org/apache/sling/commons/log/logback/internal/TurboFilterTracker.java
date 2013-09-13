@@ -41,6 +41,9 @@ public class TurboFilterTracker extends ServiceTracker implements LogbackResetLi
     @Override
     public Object addingService(ServiceReference reference) {
         TurboFilter tf = (TurboFilter) super.addingService(reference);
+        tf.setContext(loggerContext);
+        tf.start();
+
         attachFilter(tf);
         filters.put(reference,tf);
         return tf;
