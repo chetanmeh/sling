@@ -114,8 +114,10 @@ public class ITWebConsoleRemote extends LogTestBase {
         final HtmlPage page = webClient.getPage(prepareUrl(PLUGIN_SUFFIX));
         String text = page.asText();
 
-
+        //Filter name should be part of Filter table
         assertTrue(text.contains("WebConsoleTestTurboFilter"));
+
+        //Console name should be part of console table
         assertTrue(text.contains("WebConsoleTestAppender"));
 
         //Should show file name testremote.log
