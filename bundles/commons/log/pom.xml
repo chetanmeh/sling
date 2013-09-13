@@ -424,6 +424,9 @@
                 </goals>
                 <configuration>
                   <propertyName>coverage.command</propertyName>
+                  <excludes>
+                    <exclude>ch.qos.logback.*</exclude>
+                  </excludes>
                 </configuration>
               </execution>
               <!-- Default to setup argLine required by surefire -->
@@ -433,6 +436,11 @@
                 <goals>
                   <goal>prepare-agent</goal>
                 </goals>
+                <configuration>
+                  <excludes>
+                    <exclude>ch.qos.logback.*</exclude>
+                  </excludes>
+                </configuration>
               </execution>
               <execution>
                 <id>report</id>
