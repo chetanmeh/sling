@@ -63,7 +63,9 @@ public class ConfigSourceTracker extends ServiceTracker implements LogbackResetL
         return inputSources.values();
     }
 
-    public void close() {
+    @Override
+    public synchronized void close() {
+        super.close();
         inputSources.clear();
     }
 

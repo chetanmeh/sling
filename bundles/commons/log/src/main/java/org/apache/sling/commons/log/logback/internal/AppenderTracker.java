@@ -136,8 +136,8 @@ public class AppenderTracker extends ServiceTracker implements LogbackResetListe
 
     @Override
     public synchronized void close() {
-        appenders.clear();
         super.close();
+        appenders.clear();
     }
 
     private static Filter createFilter() throws InvalidSyntaxException {
