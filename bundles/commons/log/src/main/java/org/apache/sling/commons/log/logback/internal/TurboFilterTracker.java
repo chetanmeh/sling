@@ -66,8 +66,8 @@ public class TurboFilterTracker extends ServiceTracker implements LogbackResetLi
 
     @Override
     public synchronized void close() {
-        filters.clear();
         super.close();
+        filters.clear();
     }
 
     @Override

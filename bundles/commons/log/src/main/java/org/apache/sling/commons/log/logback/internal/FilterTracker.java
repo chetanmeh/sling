@@ -84,8 +84,8 @@ public class FilterTracker extends ServiceTracker implements LogbackResetListene
 
     @Override
     public synchronized void close() {
-        filters.clear();
         super.close();
+        filters.clear();
     }
 
     //~-----------------------------------LogbackResetListener
