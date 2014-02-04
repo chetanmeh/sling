@@ -23,7 +23,7 @@
     <parent>
         <groupId>org.apache.sling</groupId>
         <artifactId>sling</artifactId>
-        <version>13</version>
+        <version>18</version>
         <relativePath>../../../parent/pom.xml</relativePath>
     </parent>
 
@@ -72,8 +72,8 @@
                             org.jdom.*;resolution:=optional, *
                         </Import-Package>
                         
-                        <ScriptEngine-Name>${pom.name}</ScriptEngine-Name>
-                        <ScriptEngine-Version>${pom.version}</ScriptEngine-Version>
+                        <ScriptEngine-Name>${project.name}</ScriptEngine-Name>
+                        <ScriptEngine-Version>${project.version}</ScriptEngine-Version>
                     </instructions>
                 </configuration>
             </plugin>

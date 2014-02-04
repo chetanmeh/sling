@@ -27,10 +27,11 @@ public abstract class ConfigurationConstants {
 
     public static final String DEFAULT_TYPE = "UNORDERED";
     public static final String DEFAULT_PRIORITY = "NORM";
-    public static final boolean DEFAULT_RUN_LOCAL = false;
     public static final int DEFAULT_RETRIES = 10;
     public static final long DEFAULT_RETRY_DELAY = 2000;
     public static final int DEFAULT_MAX_PARALLEL = 15;
+    public static final boolean DEFAULT_KEEP_JOBS = false;
+    public static final int DEFAULT_THREAD_POOL_SIZE = 0;
 
     public static final String PROP_NAME = "queue.name";
     public static final String PROP_TYPE = "queue.type";
@@ -39,6 +40,7 @@ public abstract class ConfigurationConstants {
     public static final String PROP_RETRIES = "queue.retries";
     public static final String PROP_RETRY_DELAY = "queue.retrydelay";
     public static final String PROP_PRIORITY = "queue.priority";
-    public static final String PROP_RUN_LOCAL = "queue.runlocal";
-    public static final String PROP_APP_IDS = "queue.applicationids";
+    public static final String PROP_KEEP_JOBS = "queue.keepJobs";
+    public static final String PROP_THREAD_POOL_SIZE = "queue.threadPoolSize";
+
 }

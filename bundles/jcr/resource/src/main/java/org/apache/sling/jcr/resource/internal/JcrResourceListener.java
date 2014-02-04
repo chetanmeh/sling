@@ -41,6 +41,7 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.jcr.api.SlingRepository;
+import org.apache.sling.jcr.resource.JcrResourceConstants;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceReference;
 import org.osgi.service.event.EventAdmin;
@@ -129,7 +130,7 @@ public class JcrResourceListener implements EventListener {
             public void run() {
                 processOsgiEventQueue();
             }
-        }, "Apche Sling JCR Resource Event Queue Processor for path '" + this.startPath + "'");
+        }, "Apache Sling JCR Resource Event Queue Processor for path '" + this.startPath + "'");
         oeqt.start();
     }
 
@@ -144,6 +145,7 @@ public class JcrResourceListener implements EventListener {
             } catch (RepositoryException e) {
                 logger.warn("Unable to remove session listener: " + this, e);
             }
+            this.session.logout();
         }
         if ( this.resourceResolver != null ) {
             this.resourceResolver.close();
@@ -193,12 +195,7 @@ public class JcrResourceListener implements EventListener {
                     this.updateChangedEvent(changedEvents, nodePath, event, propName);
 
                 } else if ( event.getType() == Event.NODE_ADDED ) {
-                    // check if this is a remove/add operation
-                    if ( removedEvents.remove(eventPath) != null ) {
-                        this.updateChangedEvent(changedEvents, eventPath, event, null);
-                    } else {
-                        addedEvents.put(eventPath, event);
-                    }
+                    addedEvents.put(eventPath, event);
 
                 } else if ( event.getType() == Event.NODE_REMOVED) {
                     // remove is the strongest operation, therefore remove all removed
@@ -214,7 +211,7 @@ public class JcrResourceListener implements EventListener {
         for (final Entry<String, Event> e : removedEvents.entrySet()) {
             // Launch an OSGi event
             sendOsgiEvent(e.getKey(), e.getValue(), SlingConstants.TOPIC_RESOURCE_REMOVED,
-                changedEvents.remove(e.getKey()));
+                null);
         }
 
         for (final Entry<String, Event> e : addedEvents.entrySet()) {
@@ -266,16 +263,14 @@ public class JcrResourceListener implements EventListener {
         }
 
         public void addProperties(final Dictionary<String, Object> properties) {
-            // we're not using the Constants from SlingConstants here to avoid the requirement of the latest
-            // SLING API to be available!!
             if ( addedAttributes != null )  {
-                properties.put("resourceAddedAttributes", addedAttributes.toArray(new String[addedAttributes.size()]));
+                properties.put(SlingConstants.PROPERTY_ADDED_ATTRIBUTES, addedAttributes.toArray(new String[addedAttributes.size()]));
             }
             if ( changedAttributes != null )  {
-                properties.put("resourceChangedAttributes", changedAttributes.toArray(new String[changedAttributes.size()]));
+                properties.put(SlingConstants.PROPERTY_CHANGED_ATTRIBUTES, changedAttributes.toArray(new String[changedAttributes.size()]));
             }
             if ( removedAttributes != null )  {
-                properties.put("resourceRemovedAttributes", removedAttributes.toArray(new String[removedAttributes.size()]));
+                properties.put(SlingConstants.PROPERTY_REMOVED_ATTRIBUTES, removedAttributes.toArray(new String[removedAttributes.size()]));
             }
         }
     }
@@ -301,9 +296,14 @@ public class JcrResourceListener implements EventListener {
             final ChangedAttributes changedAttributes) {
 
         final Dictionary<String, Object> properties = new Hashtable<String, Object>();
-        properties.put(SlingConstants.PROPERTY_USERID, event.getUserID());
+
         if (this.isExternal(event)) {
             properties.put("event.application", "unknown");
+        } else {
+            final String userID = event.getUserID();
+            if (userID != null) {
+                properties.put(SlingConstants.PROPERTY_USERID, userID);
+            }
         }
         if (changedAttributes != null) {
             changedAttributes.addProperties(properties);
@@ -327,8 +327,10 @@ public class JcrResourceListener implements EventListener {
             if ( ref != null ) {
                 final ResourceResolverFactory factory = (ResourceResolverFactory) this.bundleContext.getService(ref);
                 if ( factory != null ) {
+                    final Map<String, Object> authInfo = new HashMap<String, Object>();
+                    authInfo.put(JcrResourceConstants.AUTHENTICATION_INFO_SESSION, this.session);
                     try {
-                        this.resourceResolver = factory.getAdministrativeResourceResolver(null);
+                        this.resourceResolver = factory.getResourceResolver(authInfo);
                         this.resourceResolverFactoryReference = ref;
                     } catch (final LoginException le) {
                         logger.error("Unable to get administrative resource resolver.", le);
@@ -405,11 +407,6 @@ public class JcrResourceListener implements EventListener {
                             logger.debug(
                                 "processOsgiEventQueue: Resource at {} not found, which is not expected for an added or modified node",
                                 path);
-                            sendEvent = false;
-                        }
-                    } else {
-                        // check if the resource is still available - if so the node was not visible!
-                        if ( resource != null ) {
                             sendEvent = false;
                         }
                     }

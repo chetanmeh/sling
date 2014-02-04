@@ -33,7 +33,9 @@ import org.osgi.service.event.Event;
  * An implementation of a map that helps in dealing with properties
  * of an OSGi event.
  * This map implements both, the map and the dictionary interfaces.
+ * @deprecated EventAdmin supports creating events with maps now as well.
  */
+@Deprecated
 public class EventPropertiesMap
     extends Dictionary<String, Object>
     implements Map<String, Object>, Serializable {
@@ -78,6 +80,7 @@ public class EventPropertiesMap
     /**
      * @see java.util.Map#clear()
      */
+    @Override
     public void clear() {
         delegatee.clear();
     }
@@ -85,6 +88,7 @@ public class EventPropertiesMap
     /**
      * @see java.util.Map#containsKey(java.lang.Object)
      */
+    @Override
     public boolean containsKey(Object key) {
         return delegatee.containsKey(key);
     }
@@ -92,6 +96,7 @@ public class EventPropertiesMap
     /**
      * @see java.util.Map#containsValue(java.lang.Object)
      */
+    @Override
     public boolean containsValue(Object value) {
         return delegatee.containsValue(value);
     }
@@ -99,6 +104,7 @@ public class EventPropertiesMap
     /**
      * @see java.util.Map#entrySet()
      */
+    @Override
     public Set<java.util.Map.Entry<String, Object>> entrySet() {
         return delegatee.entrySet();
     }
@@ -106,13 +112,18 @@ public class EventPropertiesMap
     /**
      * @see java.lang.Object#equals(java.lang.Object)
      */
+    @Override
     public boolean equals(Object o) {
+        if ( o instanceof EventPropertiesMap ) {
+            return delegatee.equals(((EventPropertiesMap)o).delegatee);
+        }
         return delegatee.equals(o);
     }
 
     /**
      * @see java.util.Dictionary#get(java.lang.Object)
      */
+    @Override
     public Object get(Object key) {
         return delegatee.get(key);
     }
@@ -120,6 +131,7 @@ public class EventPropertiesMap
     /**
      * @see java.lang.Object#hashCode()
      */
+    @Override
     public int hashCode() {
         return delegatee.hashCode();
     }
@@ -127,6 +139,7 @@ public class EventPropertiesMap
     /**
      * @see java.util.Dictionary#isEmpty()
      */
+    @Override
     public boolean isEmpty() {
         return delegatee.isEmpty();
     }
@@ -134,6 +147,7 @@ public class EventPropertiesMap
     /**
      * @see java.util.Map#keySet()
      */
+    @Override
     public Set<String> keySet() {
         return delegatee.keySet();
     }
@@ -141,6 +155,7 @@ public class EventPropertiesMap
     /**
      * @see java.util.Dictionary#put(java.lang.Object, java.lang.Object)
      */
+    @Override
     public Object put(String key, Object value) {
         return delegatee.put(key, value);
     }
@@ -148,6 +163,7 @@ public class EventPropertiesMap
     /**
      * @see java.util.Map#putAll(java.util.Map)
      */
+    @Override
     public void putAll(Map<? extends String, ? extends Object> t) {
         delegatee.putAll(t);
     }
@@ -155,6 +171,7 @@ public class EventPropertiesMap
     /**
      * @see java.util.Dictionary#remove(java.lang.Object)
      */
+    @Override
     public Object remove(Object key) {
         return delegatee.remove(key);
     }
@@ -162,6 +179,7 @@ public class EventPropertiesMap
     /**
      * @see java.util.Dictionary#size()
      */
+    @Override
     public int size() {
         return delegatee.size();
     }
@@ -169,6 +187,7 @@ public class EventPropertiesMap
     /**
      * @see java.util.Map#values()
      */
+    @Override
     public Collection<Object> values() {
         return delegatee.values();
     }
@@ -176,6 +195,7 @@ public class EventPropertiesMap
     /**
      * @see java.util.Dictionary#elements()
      */
+    @Override
     public Enumeration<Object> elements() {
         return Collections.enumeration(this.values());
     }
@@ -183,6 +203,7 @@ public class EventPropertiesMap
     /**
      * @see java.util.Dictionary#keys()
      */
+    @Override
     public Enumeration<String> keys() {
         return Collections.enumeration(this.keySet());
     }
@@ -190,6 +211,7 @@ public class EventPropertiesMap
     /**
      * @see java.lang.Object#toString()
      */
+    @Override
     public String toString() {
         return this.delegatee.toString();
     }

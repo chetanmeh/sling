@@ -56,15 +56,12 @@ public abstract class AbstractResource
      * calling the {@link ResourceUtil#getParent(String)} method and then to
      * retrieve that resource from the resource resolver.
      */
-    @SuppressWarnings("deprecation")
     public Resource getParent() {
-        //
-        // Implemented calling the deprecated ResourceUtil.getParent method
-        // (which actually has the implementation) to prevent problems if there
-        // are implementations of the pre-2.1.0 Resource interface in the
-        // framework.
-        //
-        return ResourceUtil.getParent(this);
+        final String parentPath = ResourceUtil.getParent(getPath());
+        if (parentPath == null) {
+            return null;
+        }
+        return getResourceResolver().getResource(parentPath);
     }
 
     /**
@@ -97,21 +94,32 @@ public abstract class AbstractResource
     }
 
     /**
+     * @see org.apache.sling.api.resource.Resource#getChildren()
+     */
+    public Iterable<Resource> getChildren() {
+        return new Iterable<Resource>() {
+
+            public Iterator<Resource> iterator() {
+                return listChildren();
+            }
+        };
+    }
+    
+    /**
+     * Checks to see if there are direct children of this resource by invoking
+     * {@link ResourceResolver#hasChildren(Resource)}.
+     */
+    public boolean hasChildren() {
+        return getResourceResolver().hasChildren(this);
+    }
+
+    /**
      * Returns <code>true</code> if this resource is of the given resource type
      * or if any of the super resource types equals the given resource type.
      * <p>
-     * This method is implemented by first checking the resource type then
-     * walking up the resource super type chain using the
-     * {@link ResourceUtil#findResourceSuperType(Resource)} and
-     * {@link ResourceUtil#getResourceSuperType(ResourceResolver, String)}
-     * methods.
+     * This method delegates to {@link ResourceResolver#isResourceType(Resource, String)}
      */
-    public boolean isResourceType(String resourceType) {
-        //
-        // Implemented calling the ResourceUtil.isA method (which actually has
-        // the implementation) to prevent problems if there are implementations
-        // of the pre-2.1.0 Resource interface in the framework.
-        //
-        return ResourceUtil.internalIsA(this, resourceType);
+    public boolean isResourceType(final String resourceType) {
+        return this.getResourceResolver().isResourceType(this, resourceType);
     }
 }

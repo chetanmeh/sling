@@ -36,7 +36,7 @@ import javax.servlet.http.HttpServletResponse;
 
 import org.apache.sling.api.request.ResponseUtil;
 import org.apache.sling.api.resource.ResourceResolver;
-import org.apache.sling.resourceresolver.impl.ResourceResolverFactoryImpl;
+import org.apache.sling.resourceresolver.impl.CommonResourceResolverFactoryImpl;
 import org.apache.sling.resourceresolver.impl.helper.URI;
 import org.apache.sling.resourceresolver.impl.helper.URIException;
 import org.apache.sling.resourceresolver.impl.mapping.MapEntries;
@@ -56,12 +56,12 @@ public class ResourceResolverWebConsolePlugin extends HttpServlet {
     private static final String PAR_MSG = "msg";
     private static final String PAR_TEST = "test";
 
-    private final transient ResourceResolverFactoryImpl resolverFactory;
+    private final transient CommonResourceResolverFactoryImpl resolverFactory;
 
     private transient ServiceRegistration service;
 
     public ResourceResolverWebConsolePlugin(BundleContext context,
-            ResourceResolverFactoryImpl resolverFactory) {
+            CommonResourceResolverFactoryImpl resolverFactory) {
         this.resolverFactory = resolverFactory;
 
         Dictionary<String, Object> props = new Hashtable<String, Object>();
@@ -70,7 +70,8 @@ public class ResourceResolverWebConsolePlugin extends HttpServlet {
         props.put(Constants.SERVICE_VENDOR, "The Apache Software Foundation");
         props.put(Constants.SERVICE_PID, getClass().getName());
         props.put("felix.webconsole.label", "jcrresolver");
-        props.put("felix.webconsole.title", "Sling Resource Resolver");
+        props.put("felix.webconsole.title", "Resource Resolver");
+        props.put("felix.webconsole.category", "Sling");
         props.put("felix.webconsole.configprinter.modes", "always");
 
         service = context.registerService(

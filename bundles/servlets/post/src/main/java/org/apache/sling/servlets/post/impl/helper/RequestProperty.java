@@ -65,6 +65,8 @@ public class RequestProperty {
 
     private boolean patch = false;
 
+    private Chunk chunk;
+
     public RequestProperty(String path) {
         assert path.startsWith("/");
         this.path = ResourceUtil.normalize(path);
@@ -298,5 +300,20 @@ public class RequestProperty {
      */
     public boolean isPatch() {
         return patch;
+    }
+
+    /**
+     *  Return true if request is chunk upload.
+     */
+    public boolean isChunkUpload() {
+        return chunk != null;
+    }
+
+    public Chunk getChunk() {
+        return chunk;
+    }
+
+    public void setChunk(Chunk chunk) {
+        this.chunk = chunk;
     }
 }

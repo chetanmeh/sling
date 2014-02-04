@@ -22,12 +22,12 @@
     <parent>
         <groupId>org.apache.sling</groupId>
         <artifactId>sling</artifactId>
-        <version>13</version>
+        <version>18</version>
         <relativePath>../../../parent/pom.xml</relativePath>
     </parent>
 
     <artifactId>org.apache.sling.jcr.resource</artifactId>
-    <version>2.1.1-SNAPSHOT</version>
+    <version>2.3.1-SNAPSHOT</version>
     <packaging>bundle</packaging>
 
     <name>Apache Sling JCR Resource Resolver</name>
@@ -61,7 +61,6 @@
             <plugin>
                 <groupId>org.apache.sling</groupId>
                 <artifactId>maven-sling-plugin</artifactId>
-                <version>2.1.0</version>
                 <executions>
                     <execution>
                         <id>generate-adapter-metadata</id>
@@ -84,13 +83,14 @@
                             org.apache.sling.scripting.api.*;resolution:=optional,
                             org.apache.sling.api.resource;provide:=true,
                             org.apache.sling.commons.osgi;version="$(@)",
+                            !org.apache.jackrabbit.api.observation,
                             *
                         </Import-Package>
                         <DynamicImport-Package>
                             org.apache.jackrabbit.api.observation
                         </DynamicImport-Package>
                         <Export-Package>
-                            org.apache.sling.jcr.resource;version=2.1
+                            org.apache.sling.jcr.resource;version=2.2
                         </Export-Package>
                         <Private-Package>
                             org.apache.sling.jcr.resource.internal.*
@@ -146,7 +146,7 @@
         <dependency>
             <groupId>org.apache.sling</groupId>
             <artifactId>org.apache.sling.api</artifactId>
-            <version>2.2.5-SNAPSHOT</version>
+            <version>2.5.0</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -158,7 +158,7 @@
         <dependency>
             <groupId>org.apache.sling</groupId>
             <artifactId>org.apache.sling.jcr.api</artifactId>
-            <version>2.0.6</version>
+            <version>2.2.1-SNAPSHOT</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -190,9 +190,15 @@
             <scope>provided</scope>
         </dependency>
         <dependency>
-           <groupId>commons-collections</groupId>
-           <artifactId>commons-collections</artifactId>
-           <version>3.2.1</version>
+            <groupId>commons-collections</groupId>
+            <artifactId>commons-collections</artifactId>
+            <version>3.2.1</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>commons-lang</groupId>
+            <artifactId>commons-lang</artifactId>
+            <version>2.2</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -232,7 +238,7 @@
         <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-all</artifactId>
-            <version>1.8.2</version>
+            <version>1.9.5</version>
             <scope>test</scope>
         </dependency>
         <dependency>

@@ -558,6 +558,7 @@ class DefaultSlingScript implements SlingScript, Servlet, ServletConfig {
             /**
              * @see java.io.Reader#close()
              */
+            @Override
             public void close() throws IOException {
                 scriptReader.close();
             }
@@ -853,6 +854,7 @@ class DefaultSlingScript implements SlingScript, Servlet, ServletConfig {
         /**
          * @see org.apache.sling.api.resource.Resource#getPath()
          */
+        @Override
         public String getPath() {
             return this.path;
         }
@@ -860,6 +862,7 @@ class DefaultSlingScript implements SlingScript, Servlet, ServletConfig {
         /**
          * @see org.apache.sling.api.resource.Resource#getResourceType()
          */
+        @Override
         public String getResourceType() {
             return this.resourceType;
         }
@@ -867,6 +870,7 @@ class DefaultSlingScript implements SlingScript, Servlet, ServletConfig {
         /**
          * @see org.apache.sling.api.resource.Resource#getResourceResolver()
          */
+        @Override
         public ResourceResolver getResourceResolver() {
             return this.resolver;
         }

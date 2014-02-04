@@ -15,7 +15,9 @@ http://www.infoq.com/articles/webber-rest-workflow
 
 HOW TO INSTALL
 --------------
-Build this bundle and install it in Sling.
+Build this bundle and install it in Sling. See
+http://sling.apache.org/documentation/development/getting-and-building-sling.html
+for how to do that.
 
 For example, if Sling is running on port 8080 (which happens if you start 
 the launchpad/testing module with "mvn jetty:run"), this will build and 
@@ -28,7 +30,11 @@ list the "org.apache.sling.samples.slingbucks" bundle as active.
 
 HOW TO TEST
 -----------
-Start at 
+On a default Sling trunk instance you usually need to first disable the 
+"Allow Anonymous Access" option at 
+http://localhost:8080/system/console/configMgr/org.apache.sling.engine.impl.auth.SlingAuthenticator
+
+Then, start at 
 
   http://localhost:8080/content/slingbucks/public/orders.html 
   

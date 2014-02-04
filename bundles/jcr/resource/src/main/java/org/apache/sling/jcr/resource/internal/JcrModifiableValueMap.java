@@ -51,7 +51,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * This implementation of the value map allows to change
- * the properies.
+ * the properties.
  *
  * TODO : This adds a lot of duplicate code - we should consolidate.
  */
@@ -65,13 +65,16 @@ public final class JcrModifiableValueMap
     private final Node node;
 
     /** A cache for the properties. */
-    final Map<String, JcrPropertyMapCacheEntry> cache;
+    private final Map<String, JcrPropertyMapCacheEntry> cache;
 
     /** A cache for the values. */
-    final Map<String, Object> valueCache;
+    private final Map<String, Object> valueCache;
 
-    /** Has the node been read completly? */
-    boolean fullyRead;
+    /** Has the node been read completely? */
+    private boolean fullyRead;
+
+    /** keep all prefixes for escaping */
+    private String[] namespacePrefixes;
 
     private final ClassLoader dynamicClassLoader;
 
@@ -251,7 +254,7 @@ public final class JcrModifiableValueMap
             final String name = prop.getName();
             String key = null;
             if ( name.indexOf("_x") != -1 ) {
-                // for compatiblity with older versions we use the (wrong)
+                // for compatibility with older versions we use the (wrong)
                 // ISO9075 path encoding
                 key = ISO9075.decode(name);
                 if ( key.equals(name) ) {
@@ -327,9 +330,10 @@ public final class JcrModifiableValueMap
             return null;
         }
 
-        // if the node has been completely read we can directly return
-        if ( fullyRead ) {
-            return cache.get(name);
+        // check cache
+        JcrPropertyMapCacheEntry cachedValued = cache.get(name);
+        if ( fullyRead || cachedValued != null ) {
+            return cachedValued;
         }
 
         try {
@@ -343,7 +347,7 @@ public final class JcrModifiableValueMap
         }
 
         try {
-            // for compatiblity with older versions we use the (wrong) ISO9075 path
+            // for compatibility with older versions we use the (wrong) ISO9075 path
             // encoding
             final String oldKey = ISO9075.encodePath(name);
             if (node.hasProperty(oldKey)) {
@@ -370,8 +374,7 @@ public final class JcrModifiableValueMap
         // check if colon is neither the first nor the last character
         if (indexOfPrefix > 0 && key.length() > indexOfPrefix + 1) {
             final String prefix = key.substring(0, indexOfPrefix);
-            for (final String existingPrefix : getNode().getSession()
-                    .getNamespacePrefixes()) {
+            for (final String existingPrefix : getNamespacePrefixes()) {
                 if (existingPrefix.equals(prefix)) {
                     return prefix
                             + ":"
@@ -381,6 +384,16 @@ public final class JcrModifiableValueMap
             }
         }
         return Text.escapeIllegalJcrChars(key);
+    }
+
+    /**
+    * Read namespace prefixes and store as member variable to minimize number of JCR API calls
+    */
+    private String[] getNamespacePrefixes() throws RepositoryException {
+        if (this.namespacePrefixes == null) {
+            this.namespacePrefixes = getNode().getSession().getNamespacePrefixes();
+        }
+        return this.namespacePrefixes;
     }
 
     /**
@@ -521,6 +534,14 @@ public final class JcrModifiableValueMap
         } else if (Property.class == type) {
             return (T) entry.property;
 
+        } else if (ObjectInputStream.class == type) {
+            if ( jcrValue.getType() == PropertyType.BINARY ) {
+                try {
+                    return (T) new ObjectInputStream(jcrValue.getBinary().getStream(), this.dynamicClassLoader);
+                } catch (IOException ioe) {
+                    // ignore and use fallback
+                }
+            }
         } else if (Serializable.class.isAssignableFrom(type)
                 && jcrValue.getType() == PropertyType.BINARY) {
             ObjectInputStream ois = null;
@@ -562,7 +583,7 @@ public final class JcrModifiableValueMap
         return type;
     }
 
-    private Map<String, Object> transformEntries( Map<String, JcrPropertyMapCacheEntry> map) {
+    private Map<String, Object> transformEntries(final Map<String, JcrPropertyMapCacheEntry> map) {
 
         Map<String, Object> transformedEntries = new LinkedHashMap<String, Object>(map.size());
         for ( Map.Entry<String, JcrPropertyMapCacheEntry> entry : map.entrySet() )
@@ -608,7 +629,7 @@ public final class JcrModifiableValueMap
     /**
      * @see java.util.Map#put(java.lang.Object, java.lang.Object)
      */
-    public Object put(String aKey, Object value) {
+    public Object put(final String aKey, final Object value) {
         final String key = checkKey(aKey);
         if ( key.indexOf('/') != -1 ) {
             throw new IllegalArgumentException("Invalid key: " + key);
@@ -622,10 +643,16 @@ public final class JcrModifiableValueMap
             final JcrPropertyMapCacheEntry entry = new JcrPropertyMapCacheEntry(value, getNode().getSession());
             this.cache.put(key, entry);
             final String name = escapeKeyName(key);
-            if ( entry.isMulti ) {
-                node.setProperty(name, entry.values);
+            if ( NodeUtil.MIXIN_TYPES.equals(name) ) {
+                NodeUtil.handleMixinTypes(node, entry.values);
+            } else if ( "jcr:primaryType".equals(name) ) {
+                node.setPrimaryType(entry.values[0].getString());
             } else {
-                node.setProperty(name, entry.values[0]);
+                if ( entry.isMulti ) {
+                    node.setProperty(name, entry.values);
+                } else {
+                    node.setProperty(name, entry.values[0]);
+                }
             }
         } catch (final RepositoryException re) {
             throw new IllegalArgumentException("Value for key " + key + " can't be put into node: " + value, re);
@@ -638,8 +665,7 @@ public final class JcrModifiableValueMap
     /**
      * @see java.util.Map#putAll(java.util.Map)
      */
-    public void putAll(Map<? extends String, ? extends Object> t) {
-        readFully();
+    public void putAll(final Map<? extends String, ? extends Object> t) {
         if ( t != null ) {
             final Iterator<?> i = t.entrySet().iterator();
             while (i.hasNext() ) {
@@ -653,7 +679,7 @@ public final class JcrModifiableValueMap
     /**
      * @see java.util.Map#remove(java.lang.Object)
      */
-    public Object remove(Object aKey) {
+    public Object remove(final Object aKey) {
         final String key = checkKey(aKey.toString());
         readFully();
         final Object oldValue = this.cache.remove(key);

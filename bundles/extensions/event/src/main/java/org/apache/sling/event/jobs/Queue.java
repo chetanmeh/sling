@@ -18,11 +18,14 @@
  */
 package org.apache.sling.event.jobs;
 
+import aQute.bnd.annotation.ProviderType;
+
 
 /**
  * This is a job queue processing job events.
  * @since 3.0
  */
+@ProviderType
 public interface Queue {
 
     /**
@@ -57,7 +60,7 @@ public interface Queue {
      * method, the job queue can be woken up and force an immediate reprocessing.
      * This feature is only supported by ordered queues at the moment. If a queue
      * does not support this feature, calling this method has only an effect if
-     * the queue is really supsended.
+     * the queue is really suspended.
      */
     void resume();
 
@@ -75,7 +78,7 @@ public interface Queue {
 
     /**
      * Remove all outstanding jobs and delete them. This actually cancels
-     * all outstanding jobs (but no notifications are send).
+     * all outstanding jobs.
      */
     void removeAll();
 

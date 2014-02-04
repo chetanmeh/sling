@@ -23,7 +23,7 @@
     <parent>
         <groupId>org.apache.sling</groupId>
         <artifactId>sling</artifactId>
-        <version>13</version>
+        <version>18</version>
         <relativePath>../../../parent/pom.xml</relativePath>
     </parent>
 
@@ -57,7 +57,7 @@
                 <configuration>
                     <instructions>
                         <Export-Package>
-                            org.apache.sling.samples.webloader;version=${pom.version}
+                            org.apache.sling.samples.webloader;version=${project.version}
                         </Export-Package>
                         <Private-Package>
                             org.apache.sling.samples.webloader.internal

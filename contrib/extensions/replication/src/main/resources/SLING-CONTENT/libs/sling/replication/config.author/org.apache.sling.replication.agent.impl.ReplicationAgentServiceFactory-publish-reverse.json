@@ -1,0 +1,12 @@
+{
+    "jcr:primaryType" : "sling:OsgiConfig",
+    "name" : "publish-reverse",
+    "endpoint" : "http://localhost:4503/system/replication/agent/reverserepo",
+    "TransportHandler.target" : "(name=poll)", 
+    "ReplicationPackageBuilder.target" : "(name=void)",
+    "ReplicationQueueProvider.target" : "(name=sjh)",
+    "TransportAuthenticationProviderFactory.target" : "(name=user)",
+    "authentication.properties" : ["user=admin","password=admin"],
+    "ReplicationQueueDistributionStrategy.target" : "(name=single)",
+    "rules" : ["scheduled poll every 30 sec"]
+}

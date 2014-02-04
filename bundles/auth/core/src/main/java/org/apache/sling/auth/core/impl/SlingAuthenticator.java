@@ -26,6 +26,7 @@ import java.util.Hashtable;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+
 import javax.servlet.ServletRequest;
 import javax.servlet.ServletRequestEvent;
 import javax.servlet.ServletRequestListener;
@@ -53,6 +54,7 @@ import org.apache.sling.auth.core.AuthConstants;
 import org.apache.sling.auth.core.AuthUtil;
 import org.apache.sling.auth.core.AuthenticationSupport;
 import org.apache.sling.auth.core.impl.engine.EngineAuthenticationHandlerHolder;
+import org.apache.sling.auth.core.spi.AbstractAuthenticationHandler;
 import org.apache.sling.auth.core.spi.AuthenticationFeedbackHandler;
 import org.apache.sling.auth.core.spi.AuthenticationHandler;
 import org.apache.sling.auth.core.spi.AuthenticationInfo;
@@ -116,7 +118,7 @@ public class SlingAuthenticator implements Authenticator,
     public static final String PAR_ANONYMOUS_ALLOWED = "auth.annonymous";
 
     @Property(cardinality = 2147483647)
-    private static final String PAR_AUTH_REQ = "sling.auth.requirements";
+    private static final String PAR_AUTH_REQ = AuthConstants.AUTH_REQUIREMENTS;
 
     @Property()
     private static final String PAR_ANONYMOUS_USER = "sling.auth.anonymous.user";
@@ -664,14 +666,27 @@ public class SlingAuthenticator implements Authenticator,
 
     // ---------- internal
 
+    private String getPath(HttpServletRequest request) {
+        final StringBuilder sb = new StringBuilder();
+        if (request.getServletPath() != null) {
+            sb.append(request.getServletPath());
+        }
+        if (request.getPathInfo() != null) {
+            sb.append(request.getPathInfo());
+        }
+        return sb.toString();
+    }
+
     private AuthenticationInfo getAuthenticationInfo(HttpServletRequest request, HttpServletResponse response) {
 
         // Get the path used to select the authenticator, if the SlingServlet
         // itself has been requested without any more info, this will be null
         // and we assume the root (SLING-722)
-        String pathInfo = request.getPathInfo();
-        if (pathInfo == null || pathInfo.length() == 0) {
-            pathInfo = "/";
+        final String path = getPath(request);
+        if (path.length() == 0) {
+            // should not happen, be safe an return anonymous credentials
+            log.warn("get authentication info: request path is empty; assuming anonymous");
+            return getAnonymousCredentials();
         }
 
         final List<AbstractAuthenticationHandlerHolder>[] localArray = this.authHandlerCache.findApplicableHolder(request);
@@ -680,7 +695,7 @@ public class SlingAuthenticator implements Authenticator,
             if (local != null) {
                 for (int i = 0; i < local.size(); i++) {
                     AbstractAuthenticationHandlerHolder holder = local.get(i);
-                    if (pathInfo.startsWith(holder.path)) {
+                    if (path.startsWith(holder.path)) {
                         final AuthenticationInfo authInfo = holder.extractCredentials(
                             request, response);
 
@@ -862,9 +877,9 @@ public class SlingAuthenticator implements Authenticator,
 
     private boolean isAnonAllowed(HttpServletRequest request) {
 
-        String pathInfo = request.getPathInfo();
-        if (pathInfo == null || pathInfo.length() == 0) {
-            pathInfo = "/";
+        final String path = getPath(request);
+        if (path.length() == 0) {
+            return false;
         }
 
         final List<AuthenticationRequirementHolder>[] holderListArray = authRequiredCache.findApplicableHolder(request);
@@ -873,15 +888,11 @@ public class SlingAuthenticator implements Authenticator,
             if ( holderList != null ) {
                 for (int i = 0; i < holderList.size(); i++) {
                     final AuthenticationRequirementHolder holder = holderList.get(i);
-                    if (pathInfo.startsWith(holder.path)) {
+                    if (path.startsWith(holder.path)) {
                         return !holder.requiresAuthentication();
                     }
                 }
             }
-        }
-
-        if (LoginServlet.SERVLET_PATH.equals(pathInfo)) {
-            return true;
         }
 
         // fallback to anonymous not allowed (aka authentication required)
@@ -1446,7 +1457,7 @@ public class SlingAuthenticator implements Authenticator,
             SlingAuthenticatorServiceListener listener = new SlingAuthenticatorServiceListener(
                 authenticator);
             try {
-                final String filter = "(" + PAR_AUTH_REQ + "=*)";
+                final String filter = "(" + AuthConstants.AUTH_REQUIREMENTS + "=*)";
                 context.addServiceListener(listener, filter);
                 ServiceReference[] refs = context.getAllServiceReferences(null,
                     filter);
@@ -1466,30 +1477,28 @@ public class SlingAuthenticator implements Authenticator,
             this.authenticator = authenticator;
         }
 
-        public void serviceChanged(ServiceEvent event) {
+        public void serviceChanged(final ServiceEvent event) {
+            synchronized ( props ) {
+                // modification of service properties, unregistration of the
+                // service or service properties does not contain requirements
+                // property any longer (new event with type 8 added in OSGi Core
+                // 4.2)
+                if ((event.getType() & (ServiceEvent.MODIFIED
+                    | ServiceEvent.UNREGISTERING | 8)) != 0) {
+                    removeService(event.getServiceReference());
+                }
 
-            // modification of service properties, unregistration of the
-            // service or service properties does not contain requirements
-            // property any longer (new event with type 8 added in OSGi Core
-            // 4.2)
-            if ((event.getType() & (ServiceEvent.MODIFIED
-                | ServiceEvent.UNREGISTERING | 8)) != 0) {
-                removeService(event.getServiceReference());
-            }
-
-            // add requirements for newly registered services and for
-            // updated services
-            if ((event.getType() & (ServiceEvent.REGISTERED | ServiceEvent.MODIFIED)) != 0) {
-                addService(event.getServiceReference());
+                // add requirements for newly registered services and for
+                // updated services
+                if ((event.getType() & (ServiceEvent.REGISTERED | ServiceEvent.MODIFIED)) != 0) {
+                    addService(event.getServiceReference());
+                }
             }
         }
 
         void registerServices() {
             AuthenticationRequirementHolder[][] authReqsList;
-            synchronized (props) {
-                authReqsList = props.values().toArray(
-                    new AuthenticationRequirementHolder[props.size()][]);
-            }
+            authReqsList = props.values().toArray(new AuthenticationRequirementHolder[props.size()][]);
 
             for (AuthenticationRequirementHolder[] authReqs : authReqsList) {
                 registerService(authReqs);
@@ -1515,19 +1524,13 @@ public class SlingAuthenticator implements Authenticator,
             }
 
             final AuthenticationRequirementHolder[] authReqs = authReqList.toArray(new AuthenticationRequirementHolder[authReqList.size()]);
-            registerService(authReqs);
 
-            synchronized (props) {
-                props.put(ref.getProperty(Constants.SERVICE_ID), authReqs);
-            }
+            registerService(authReqs);
+            props.put(ref.getProperty(Constants.SERVICE_ID), authReqs);
         }
 
         private void removeService(final ServiceReference ref) {
-            final AuthenticationRequirementHolder[] authReqs;
-            synchronized (props) {
-                authReqs = props.remove(ref.getProperty(Constants.SERVICE_ID));
-            }
-
+            final AuthenticationRequirementHolder[] authReqs = props.remove(ref.getProperty(Constants.SERVICE_ID));
             if (authReqs != null) {
                 for (AuthenticationRequirementHolder authReq : authReqs) {
                     authenticator.authRequiredCache.removeHolder(authReq);
@@ -1607,7 +1610,7 @@ public class SlingAuthenticator implements Authenticator,
                 }
 
                 // keep a copy of them for unregistration later
-                synchronized (handler) {
+                synchronized (handlerMap) {
                     handlerMap.put(ref.getProperty(Constants.SERVICE_ID),
                         holders);
                 }

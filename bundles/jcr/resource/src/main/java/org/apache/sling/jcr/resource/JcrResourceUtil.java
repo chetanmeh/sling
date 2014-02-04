@@ -19,6 +19,7 @@
 package org.apache.sling.jcr.resource;
 
 import java.io.InputStream;
+import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.util.Calendar;
 import java.util.StringTokenizer;
@@ -86,9 +87,25 @@ public class JcrResourceUtil {
     public static Object toJavaObject(Property property)
             throws RepositoryException {
         // multi-value property: return an array of values
-        if (property.getDefinition().isMultiple()) {
+        if (property.isMultiple()) {
             Value[] values = property.getValues();
-            Object[] result = new Object[values.length];
+            final Object firstValue = values.length > 0 ? toJavaObject(values[0]) : null;
+            final Object[] result;
+            if ( firstValue instanceof Boolean ) {
+                result = new Boolean[values.length];
+            } else if ( firstValue instanceof Calendar ) {
+                result = new Calendar[values.length];
+            } else if ( firstValue instanceof Double ) {
+                result = new Double[values.length];
+            } else if ( firstValue instanceof Long ) {
+                result = new Long[values.length];
+            } else if ( firstValue instanceof BigDecimal) {
+                result = new BigDecimal[values.length];
+            } else if ( firstValue instanceof InputStream) {
+                result = new Object[values.length];
+            } else {
+                result = new String[values.length];
+            }
             for (int i = 0; i < values.length; i++) {
                 Value value = values[i];
                 if (value != null) {
@@ -127,6 +144,10 @@ public class JcrResourceUtil {
             val = fac.createValue((BigDecimal)value);
         } else if (value instanceof Long) {
             val = fac.createValue((Long)value);
+        } else if (value instanceof Short) {
+            val = fac.createValue((Short)value);
+        } else if (value instanceof Integer) {
+            val = fac.createValue((Integer)value);
         } else if (value instanceof Number) {
             val = fac.createValue(((Number)value).doubleValue());
         } else if (value instanceof Boolean) {
@@ -154,10 +175,11 @@ public class JcrResourceUtil {
         if ( propertyValue == null ) {
             node.setProperty(propertyName, (String)null);
         } else if ( propertyValue.getClass().isArray() ) {
-            final Object[] values = (Object[])propertyValue;
-            final Value[] setValues = new Value[values.length];
-            for(int i=0; i<values.length; i++) {
-                setValues[i] = createValue(values[i], node.getSession());
+            final int length = Array.getLength(propertyValue);
+            final Value[] setValues = new Value[length];
+            for(int i=0; i<length; i++) {
+                final Object value = Array.get(propertyValue, i);
+                setValues[i] = createValue(value, node.getSession());
             }
             node.setProperty(propertyName, setValues);
         } else {
@@ -258,17 +280,30 @@ public class JcrResourceUtil {
                                   String nodeType,
                                   Session session,
                                   boolean autoSave)
-    throws RepositoryException {
+            throws RepositoryException {
         if (path == null || path.length() == 0 || "/".equals(path)) {
             return session.getRootNode();
         } else if (!session.itemExists(path)) {
-            return createPath(session.getRootNode(),
-                    path.substring(1),
+            String existingPath = findExistingPath(path, session);
+
+
+            String relativePath = null;
+            Node parentNode = null;
+            if (existingPath != null) {
+                parentNode = session.getNode(existingPath);
+                relativePath = path.substring(existingPath.length() + 1);
+            } else {
+                relativePath = path.substring(1);
+                parentNode = session.getRootNode();
+            }
+
+            return createPath(parentNode,
+                    relativePath,
                     intermediateNodeType,
                     nodeType,
                     autoSave);
         } else {
-            return (Node) session.getItem(path);
+            return session.getNode(path);
         }
     }
 
@@ -295,6 +330,15 @@ public class JcrResourceUtil {
         if (relativePath == null || relativePath.length() == 0 || "/".equals(relativePath)) {
             return parentNode;
         } else if (!parentNode.hasNode(relativePath)) {
+            Session session = parentNode.getSession();
+            String path = parentNode.getPath() + "/" + relativePath;
+            String existingPath = findExistingPath(path, session);
+
+            if (existingPath != null) {
+                parentNode = session.getNode(existingPath);
+                relativePath = path.substring(existingPath.length() + 1);
+            }
+
             Node node = parentNode;
             int pos = relativePath.lastIndexOf('/');
             if ( pos != -1 ) {
@@ -330,5 +374,25 @@ public class JcrResourceUtil {
         } else {
             return parentNode.getNode(relativePath);
         }
+    }
+
+    private static String findExistingPath(String path, Session session)
+            throws RepositoryException {
+        //find the parent that exists
+        // we can start from the youngest child in tree
+        int currentIndex = path.lastIndexOf('/');
+        String temp = path;
+        String existingPath = null;
+        while (currentIndex > 0) {
+            temp = temp.substring(0, currentIndex);
+            //break when first existing parent is found
+            if (session.itemExists(temp)) {
+                existingPath = temp;
+                break;
+            }
+            currentIndex = temp.lastIndexOf("/");
+        }
+
+        return existingPath;
     }
 }

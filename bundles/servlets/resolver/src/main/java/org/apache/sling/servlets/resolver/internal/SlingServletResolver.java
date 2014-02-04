@@ -28,7 +28,6 @@ import static org.osgi.framework.Constants.SERVICE_PID;
 import static org.osgi.service.component.ComponentConstants.COMPONENT_NAME;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.PrintWriter;
 import java.net.URL;
 import java.util.ArrayList;
@@ -50,7 +49,6 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.felix.scr.annotations.Component;
 import org.apache.felix.scr.annotations.Properties;
@@ -64,16 +62,15 @@ import org.apache.sling.api.SlingConstants;
 import org.apache.sling.api.SlingException;
 import org.apache.sling.api.SlingHttpServletRequest;
 import org.apache.sling.api.SlingHttpServletResponse;
+import org.apache.sling.api.request.RequestPathInfo;
 import org.apache.sling.api.request.RequestProgressTracker;
 import org.apache.sling.api.request.RequestUtil;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.api.resource.ResourceDecorator;
 import org.apache.sling.api.resource.ResourceProvider;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ResourceUtil;
-import org.apache.sling.api.resource.ResourceWrapper;
 import org.apache.sling.api.resource.SyntheticResource;
 import org.apache.sling.api.scripting.SlingScript;
 import org.apache.sling.api.scripting.SlingScriptResolver;
@@ -109,7 +106,7 @@ import org.slf4j.LoggerFactory;
  */
 @Component(name="org.apache.sling.servlets.resolver.SlingServletResolver", metatype=true,
            label="%servletresolver.name", description="%servletresolver.description")
-@Service(value={ServletResolver.class, SlingScriptResolver.class, ErrorHandler.class, ResourceDecorator.class})
+@Service(value={ServletResolver.class, SlingScriptResolver.class, ErrorHandler.class})
 @Properties({
     @Property(name="service.description", value="Sling Servlet Resolver and Error Handler"),
     @Property(name="service.vendor", value="The Apache Software Foundation"),
@@ -118,7 +115,8 @@ import org.slf4j.LoggerFactory;
          value={"org/apache/sling/api/resource/Resource/*",
                     "org/apache/sling/api/resource/ResourceProvider/*",
                     "javax/script/ScriptEngineFactory/*",
-                    "org/apache/sling/api/adapter/AdapterFactory/*"})
+                    "org/apache/sling/api/adapter/AdapterFactory/*",
+                    "org/apache/sling/scripting/core/BindingsValuesProvider/*"})
 })
 @Reference(name="Servlet", referenceInterface=javax.servlet.Servlet.class,
            cardinality=ReferenceCardinality.OPTIONAL_MULTIPLE, policy=ReferencePolicy.DYNAMIC)
@@ -126,8 +124,7 @@ public class SlingServletResolver
     implements ServletResolver,
                SlingScriptResolver,
                ErrorHandler,
-               EventHandler,
-               ResourceDecorator {
+               EventHandler {
 
     /**
      * The default servlet root is the first search path (which is usally /apps)
@@ -263,19 +260,21 @@ public class SlingServletResolver
 
         Servlet servlet = null;
 
-        if (this.useRequestWorkspace) {
-            final String wspName = getWorkspaceName(request);
-            // First, we use a resource resolver using the same workspace as the
-            // resource
-            servlet = resolveServlet(request, type, scriptResolver, wspName);
+        if ( type != null && type.length() > 0 ) {
+            if (this.useRequestWorkspace) {
+                final String wspName = getWorkspaceName(request);
+                // First, we use a resource resolver using the same workspace as the
+                // resource
+                servlet = resolveServlet(request, type, scriptResolver, wspName);
 
-            // now we try the default workspace
-            if (servlet == null && this.useDefaultWorkspace && wspName != null ) {
+                // now we try the default workspace
+                if (servlet == null && this.useDefaultWorkspace && wspName != null ) {
+                    servlet = resolveServlet(request, type, scriptResolver, this.defaultWorkspaceName);
+                }
+
+            } else {
                 servlet = resolveServlet(request, type, scriptResolver, this.defaultWorkspaceName);
             }
-
-        } else {
-            servlet = resolveServlet(request, type, scriptResolver, this.defaultWorkspaceName);
         }
 
         // last resort, use the core bundle default servlet
@@ -364,8 +363,9 @@ public class SlingServletResolver
         // first check whether the type of a resource is the absolute
         // path of a servlet (or script)
         if (scriptName.charAt(0) == '/') {
-            if ( this.isPathAllowed(scriptName) ) {
-                final Resource res = resolver.getResource(scriptName);
+            final String scriptPath = ResourceUtil.normalize(scriptName);
+            if ( this.isPathAllowed(scriptPath) ) {
+                final Resource res = resolver.getResource(scriptPath);
                 if (res != null) {
                     servlet = res.adaptTo(Servlet.class);
                 }
@@ -399,8 +399,9 @@ public class SlingServletResolver
         SlingScript script = null;
         if (name.startsWith("/")) {
 
-            if ( this.isPathAllowed(name) ) {
-                final Resource resource = resourceResolver.getResource(name);
+            final String path = ResourceUtil.normalize(name);
+            if ( this.isPathAllowed(path) ) {
+                final Resource resource = resourceResolver.getResource(path);
                 if (resource != null) {
                     script = resource.adaptTo(SlingScript.class);
                 }
@@ -410,7 +411,7 @@ public class SlingServletResolver
             // relative script resolution against search path
             final String[] path = resourceResolver.getSearchPath();
             for (int i = 0; script == null && i < path.length; i++) {
-                final String scriptPath = path[i] + name;
+                final String scriptPath = ResourceUtil.normalize(path[i] + name);
                 if ( this.isPathAllowed(scriptPath) ) {
                     final Resource resource = resourceResolver.getResource(scriptPath);
                     if (resource != null) {
@@ -493,6 +494,9 @@ public class SlingServletResolver
         }
     }
 
+    /**
+     * @see org.apache.sling.engine.servlets.ErrorHandler#handleError(java.lang.Throwable, org.apache.sling.api.SlingHttpServletRequest, org.apache.sling.api.SlingHttpServletResponse)
+     */
     public void handleError(Throwable throwable, SlingHttpServletRequest request, SlingHttpServletResponse response)
     throws IOException {
         // do not handle, if already handling ....
@@ -579,12 +583,12 @@ public class SlingServletResolver
         // first check whether the type of a resource is the absolute
         // path of a servlet (or script)
         if (type.charAt(0) == '/') {
-            if ( this.isPathAllowed(type) ) {
-                String path = type;
+            String scriptPath = ResourceUtil.normalize(type);
+            if ( this.isPathAllowed(scriptPath) ) {
                 if ( workspaceName != null ) {
-                    path = workspaceName + ':' + type;
+                    scriptPath = workspaceName + ':' + type;
                 }
-                final Resource res = resolver.getResource(path);
+                final Resource res = resolver.getResource(scriptPath);
                 if (res != null) {
                     servlet = res.adaptTo(Servlet.class);
                 }
@@ -764,7 +768,7 @@ public class SlingServletResolver
         return fallbackErrorServlet;
     }
 
-    private void handleError(Servlet errorHandler, HttpServletRequest request, HttpServletResponse response)
+    private void handleError(final Servlet errorHandler, final HttpServletRequest request, final HttpServletResponse response)
             throws IOException {
 
         request.setAttribute(SlingConstants.ERROR_REQUEST_URI, request.getRequestURI());
@@ -777,10 +781,14 @@ public class SlingServletResolver
 
         try {
             errorHandler.service(request, response);
-        } catch (IOException ioe) {
-            // forware the IOException
+            // commit the response
+            response.flushBuffer();
+            // close the response (SLING-2724)
+            response.getWriter().close();
+        } catch (final IOException ioe) {
+            // forward the IOException
             throw ioe;
-        } catch (Throwable t) {
+        } catch (final Throwable t) {
             LOGGER.error("Calling the error handler resulted in an error", t);
             LOGGER.error("Original error " + request.getAttribute(SlingConstants.ERROR_EXCEPTION_TYPE),
                     (Throwable) request.getAttribute(SlingConstants.ERROR_EXCEPTION));
@@ -867,6 +875,7 @@ public class SlingServletResolver
                     final String path = this.executionPaths[i];
                     if ( path == null || path.length() == 0 || path.equals("/") ) {
                         hasRoot = true;
+                        break;
                     }
                 }
                 if ( hasRoot ) {
@@ -888,7 +897,7 @@ public class SlingServletResolver
         // and finally register as event listener
         this.eventHandlerReg = context.getBundleContext().registerService(EventHandler.class.getName(), this,
                 properties);
-        
+
         this.plugin = new ServletResolverWebConsolePlugin(context.getBundleContext());
     }
 
@@ -1073,6 +1082,9 @@ public class SlingServletResolver
                 // adapter factory added or removed: we always flush
                 // as adapting might be transitive
                 flushCache = true;
+            } else if (topic.startsWith("org/apache/sling/scripting/core/BindingsValuesProvider/")) {
+                // bindings values provide factory added or removed: we always flush
+                flushCache = true;
             } else {
                 // this is a resource event
 
@@ -1133,30 +1145,6 @@ public class SlingServletResolver
         }
     }
 
-    /**
-     * @see org.apache.sling.api.resource.ResourceDecorator#decorate(org.apache.sling.api.resource.Resource)
-     */
-    public Resource decorate(final Resource resource) {
-        return new ResourceWrapper(resource) {
-            public boolean isResourceType(final String type) {
-                return ResourceUtil.isA(new ResourceWrapper(getResource()) {
-                    public ResourceResolver getResourceResolver() {
-                        return scriptResolver;
-                    }
-                }, type);
-            }
-        };
-     }
-
-    /**
-     * @see org.apache.sling.api.resource.ResourceDecorator#decorate(org.apache.sling.api.resource.Resource, javax.servlet.http.HttpServletRequest)
-     */
-    @SuppressWarnings("javadoc")
-    public Resource decorate(final Resource resource, final HttpServletRequest request) {
-        // this is deprecated, but we just delegate anyway
-        return this.decorate(resource);
-    }
-    
     @SuppressWarnings("serial")
     class ServletResolverWebConsolePlugin extends HttpServlet {
         private static final String PARAMETER_URL = "url";
@@ -1173,6 +1161,7 @@ public class SlingServletResolver
             props.put("felix.webconsole.label", "servletresolver");
             props.put("felix.webconsole.title", "Sling Servlet Resolver");
             props.put("felix.webconsole.css", "/servletresolver/res/ui/styles.css");
+            props.put("felix.webconsole.category", "Sling");
 
             service = context.registerService(
                     new String[] { "javax.servlet.Servlet" }, this, props);
@@ -1184,74 +1173,44 @@ public class SlingServletResolver
                 service = null;
             }
         }
-        
-        class DecomposedURL {
-            final String extension;
-            final String path;
-            final String[] selectors;
-            
-            DecomposedURL(String url) {
-                if (url != null) {
-                    final int lastDot = url.lastIndexOf('.');
-                    final int firstDot = url.indexOf('.');
-                    if (lastDot > 0) {
-                        final int slashInExtension = url.indexOf('/', lastDot);
-                        // strip suffix, if any
-                        if (slashInExtension > 0) {
-                            extension = url.substring(lastDot + 1, slashInExtension);
-                        } else {
-                            extension = url.substring(lastDot + 1);
-                        }
 
-                        path = url.substring(0, firstDot);
-                        if (lastDot != firstDot) {
-                            // has selectors
-                            final String selectorString = url.substring(firstDot + 1, lastDot);
-                            selectors = selectorString.split("\\.");
-                        } else {
-                            selectors = new String[0];
-                        }
-                    } else {
-                        extension = "";
-                        path = url;
-                        selectors = new String[0];
-                    }
-                } else {
-                    extension = "";
-                    path = "";
-                    selectors = new String[0];
-                }
-            }
-        }
-        
         @Override
         protected void service(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
             final String url = request.getParameter(PARAMETER_URL);
-            final DecomposedURL decomposed = new DecomposedURL(url);
+            final RequestPathInfo requestPathInfo = new DecomposedURL(url).getRequestPathInfo();
             String method = request.getParameter(PARAMETER_METHOD);
             if (StringUtils.isBlank(method)) {
                 method = "GET";
             }
 
+            final String CONSOLE_PATH_WARNING =
+                    "<em>"
+                    + "Note that in a real Sling request, the path might vary depending on the existence of"
+                    + " resources that partially match it."
+                    + "<br/>This utility does not take this into account and uses the first dot to split"
+                    + " between path and selectors/extension."
+                    + "<br/>As a workaround, you can replace dots with underline characters, for example, when testing such an URL."
+                    + "</em>";
+
             ResourceResolver resourceResolver = null;
             try {
                 resourceResolver = resourceResolverFactory.getAdministrativeResourceResolver(null);
-                
+
                 final PrintWriter pw = response.getWriter();
 
                 pw.print("<form method='get'>");
                 pw.println("<table class='content' cellpadding='0' cellspacing='0' width='100%'>");
-        
+
                 titleHtml(
                         pw,
                         "Servlet Resolver Test",
                         "To check which servlet is responsible for rendering a response, enter a request path into " +
                                  "the field and click 'Resolve' to resolve it.");
-        
+
                 tr(pw);
                 tdLabel(pw, "URL");
                 tdContent(pw);
-                
+
                 pw.println("<input type='text' name='" + PARAMETER_URL + "' value='" +
                          (url != null ? url : "") + "' class='input' size='50'>");
                 closeTd(pw);
@@ -1277,31 +1236,42 @@ public class SlingServletResolver
                     tdContent(pw);
                     pw.println("<dl>");
                     pw.println("<dt>Path</dt>");
-                    pw.println("<dd>" + decomposed.path + "</dd>");
+                    pw.println("<dd>" + requestPathInfo.getResourcePath() + "<br/>" + CONSOLE_PATH_WARNING + "</dd>");
                     pw.println("<dt>Selectors</dt>");
                     pw.print("<dd>");
-                    if (decomposed.selectors.length == 0) {
+                    if (requestPathInfo.getSelectors().length == 0) {
                         pw.print("&lt;none&gt;");
                     } else {
                         pw.print("[");
-                        pw.print(StringUtils.join(decomposed.selectors, ", "));
+                        pw.print(StringUtils.join(requestPathInfo.getSelectors(), ", "));
                         pw.print("]");
                     }
                     pw.println("</dd>");
                     pw.println("<dt>Extension</dt>");
-                    pw.println("<dd>" + decomposed.extension + "</dd>");
+                    pw.println("<dd>" + requestPathInfo.getExtension() + "</dd>");
+                    pw.println("</dl>");
+                    pw.println("</dd>");
+                    pw.println("<dt>Suffix</dt>");
+                    pw.println("<dd>" + requestPathInfo.getSuffix() + "</dd>");
                     pw.println("</dl>");
                     closeTd(pw);
                     closeTr(pw);
                 }
 
-                if (StringUtils.isNotBlank(decomposed.path)) {
+                if (StringUtils.isNotBlank(requestPathInfo.getResourcePath())) {
                     final Collection<Resource> servlets;
-                    Resource resource = resourceResolver.resolve(decomposed.path);
+                    Resource resource = resourceResolver.resolve(requestPathInfo.getResourcePath());
                     if (resource.adaptTo(Servlet.class) != null) {
                         servlets = Collections.singleton(resource);
                     } else {
-                        final ResourceCollector locationUtil = ResourceCollector.create(resource, defaultWorkspaceName, decomposed.extension, executionPaths, defaultExtensions, method, decomposed.selectors);
+                        final ResourceCollector locationUtil = ResourceCollector.create(
+                                resource,
+                                defaultWorkspaceName,
+                                requestPathInfo.getExtension(),
+                                executionPaths,
+                                defaultExtensions,
+                                method,
+                                requestPathInfo.getSelectors());
                         servlets = locationUtil.getServlets(resourceResolver);
                     }
                     tr(pw);
@@ -1311,7 +1281,7 @@ public class SlingServletResolver
                     if (servlets == null || servlets.isEmpty()) {
                         pw.println("Could not find a suitable servlet for this request!");
                     } else {
-                        pw.println("Candidate servlets and scripts in order of preference:<br/>");
+                        pw.println("Candidate servlets and scripts in order of preference for method " + method + ":<br/>");
                         pw.println("<ol class='servlets'>");
                         Iterator<Resource> iterator = servlets.iterator();
                         outputServlets(pw, iterator);
@@ -1339,7 +1309,7 @@ public class SlingServletResolver
         private void closeTd(final PrintWriter pw) {
             pw.print("</td>");
         }
-        
+
         @SuppressWarnings("unused")
         private URL getResource(final String path) {
             if (path.startsWith("/servletresolver/res/ui")) {
@@ -1367,7 +1337,7 @@ public class SlingServletResolver
                 Servlet candidate = candidateResource.adaptTo(Servlet.class);
                 if (candidate != null) {
                     boolean isOptingServlet = false;
-                    
+
                     if (candidate instanceof SlingScript) {
                         pw.println("<li>" + candidateResource.getPath() + "</li>");
                     } else {

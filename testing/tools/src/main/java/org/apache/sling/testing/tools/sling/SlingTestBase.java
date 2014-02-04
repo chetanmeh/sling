@@ -39,6 +39,8 @@ import org.slf4j.LoggerFactory;
  */
 public class SlingTestBase {
     public static final String TEST_SERVER_URL_PROP = "test.server.url";
+    public static final String TEST_SERVER_USERNAME = "test.server.username";
+    public static final String TEST_SERVER_PASSWORD = "test.server.password";
     public static final String SERVER_READY_TIMEOUT_PROP = "server.ready.timeout.seconds";
     public static final String SERVER_READY_PROP_PREFIX = "server.ready.path";
     public static final String KEEP_JAR_RUNNING_PROP = "keepJarRunning";
@@ -51,6 +53,8 @@ public class SlingTestBase {
 
     private static final boolean keepJarRunning = "true".equals(System.getProperty(KEEP_JAR_RUNNING_PROP));
     private final String serverBaseUrl;
+    private final String serverUsername;
+    private final String serverPassword;
     private RequestBuilder builder;
     private DefaultHttpClient httpClient = new DefaultHttpClient();
     private RequestExecutor executor = new RequestExecutor(httpClient);
@@ -70,22 +74,22 @@ public class SlingTestBase {
 
     /** Get configuration but do not start server yet, that's done on demand */
     public SlingTestBase() {
-        if(jarExecutor == null) {
-            synchronized(this) {
-                try {
-                    jarExecutor = new JarExecutor(System.getProperties());
-                } catch(Exception e) {
-                    log.error("JarExecutor setup failed", e);
-                    fail("JarExecutor setup failed: " + e);
-                }
-            }
-        }
 
         final String configuredUrl = System.getProperty(TEST_SERVER_URL_PROP, System.getProperty("launchpad.http.server.url"));
         if(configuredUrl != null) {
             serverBaseUrl = configuredUrl;
             serverStarted = true;
         } else {
+            if(jarExecutor == null) {
+                synchronized(this) {
+                    try {
+                        jarExecutor = new JarExecutor(System.getProperties());
+                    } catch(Exception e) {
+                        log.error("JarExecutor setup failed", e);
+                        fail("JarExecutor setup failed: " + e);
+                    }
+                }
+            }
             String serverHost = System.getProperty(SERVER_HOSTNAME_PROP);
             if(serverHost == null || serverHost.trim().length() == 0) {
                 serverHost = "localhost";
@@ -93,8 +97,24 @@ public class SlingTestBase {
             serverBaseUrl = "http://" + serverHost + ":" + jarExecutor.getServerPort();
         }
 
+        // Set configured username using "admin" as default credential
+        final String configuredUsername = System.getProperty(TEST_SERVER_USERNAME);
+        if (configuredUsername != null && configuredUsername.trim().length() > 0) {
+            serverUsername = configuredUsername;
+        } else {
+            serverUsername = ADMIN;
+        }
+
+        // Set configured password using "admin" as default credential
+        final String configuredPassword = System.getProperty(TEST_SERVER_PASSWORD);
+        if (configuredPassword != null && configuredPassword.trim().length() > 0) {
+            serverPassword = configuredPassword;
+        } else {
+            serverPassword = ADMIN;
+        }
+
         builder = new RequestBuilder(serverBaseUrl);
-        webconsoleClient = new WebconsoleClient(serverBaseUrl, ADMIN, ADMIN);
+        webconsoleClient = new WebconsoleClient(serverBaseUrl, serverUsername, serverPassword);
         builder = new RequestBuilder(serverBaseUrl);
         bundlesInstaller = new BundlesInstaller(webconsoleClient);
 
@@ -133,14 +153,19 @@ public class SlingTestBase {
         if(installBundlesFailed) {
             fail("Bundles could not be installed, cannot run tests");
         } else if(!extraBundlesInstalled) {
-            final String path = System.getProperty(ADDITONAL_BUNDLES_PATH);
-            if(path == null) {
+            final String paths = System.getProperty(ADDITONAL_BUNDLES_PATH);
+            if(paths == null) {
                 log.info("System property {} not set, additional bundles won't be installed",
                         ADDITONAL_BUNDLES_PATH);
             } else {
-                final List<File> toInstall = getBundlesToInstall(path);
-
+                final List<File> toInstall = new ArrayList<File>();
                 try {
+                    // Paths can contain a comma-separated list
+                    final String [] allPaths = paths.split(",");
+                    for(String path : allPaths) {
+                        toInstall.addAll(getBundlesToInstall(path.trim()));
+                    }
+                    
                     // Install bundles, check that they are installed and start them all
                     bundlesInstaller.installBundles(toInstall, false);
                     final List<String> symbolicNames = new LinkedList<String>();
@@ -178,6 +203,16 @@ public class SlingTestBase {
     protected String getServerBaseUrl() {
         startServerIfNeeded();
         return serverBaseUrl;
+    }
+
+    /** Return username configured for execution of HTTP requests */
+    protected String getServerUsername() {
+        return serverUsername;
+    }
+
+    /** Return password configured for execution of HTTP requests */
+    protected String getServerPassword() {
+        return serverPassword;
     }
 
     /** Optionally block here so that the runnable jar stays up - we can
@@ -235,17 +270,17 @@ public class SlingTestBase {
                 final String path = s[0];
                 final String pattern = (s.length > 0 ? s[1] : "");
                 try {
-                    executor.execute(builder.buildGetRequest(path))
+                    executor.execute(builder.buildGetRequest(path).withCredentials(serverUsername, serverPassword))
                     .assertStatus(200)
                     .assertContentContains(pattern);
                 } catch(AssertionError ae) {
                     errors = true;
-                    log.debug("Request to {}{} failed, will retry ({})",
-                            new Object[] { serverBaseUrl, path, ae});
+                    log.debug("Request to {}@{}{} failed, will retry ({})",
+                            new Object[] { serverUsername, serverBaseUrl, path, ae});
                 } catch(Exception e) {
                     errors = true;
-                    log.debug("Request to {}{} failed, will retry ({})",
-                            new Object[] { serverBaseUrl, path, pattern, e });
+                    log.debug("Request to {}@{}{} failed, will retry ({})",
+                            new Object[] { serverUsername, serverBaseUrl, path, pattern, e });
                 }
             }
 

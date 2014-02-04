@@ -18,9 +18,13 @@
  */
 package org.apache.sling.event.impl;
 
+import java.util.Map;
+
+import org.apache.felix.scr.annotations.Activate;
 import org.apache.felix.scr.annotations.Component;
+import org.apache.felix.scr.annotations.Deactivate;
+import org.apache.felix.scr.annotations.Modified;
 import org.apache.felix.scr.annotations.Property;
-import org.apache.felix.scr.annotations.PropertyOption;
 import org.apache.felix.scr.annotations.Reference;
 import org.apache.felix.scr.annotations.Service;
 import org.apache.sling.commons.osgi.PropertiesUtil;
@@ -29,7 +33,6 @@ import org.apache.sling.commons.threads.ThreadPool;
 import org.apache.sling.commons.threads.ThreadPoolConfig;
 import org.apache.sling.commons.threads.ThreadPoolConfig.ThreadPriority;
 import org.apache.sling.commons.threads.ThreadPoolManager;
-import org.osgi.service.component.ComponentContext;
 
 
 /**
@@ -52,45 +55,59 @@ public class EventingThreadPool implements ThreadPool {
     @Property(intValue=DEFAULT_POOL_SIZE)
     private static final String PROPERTY_POOL_SIZE = "minPoolSize";
 
-    @Property(value="NORM",
-            options={@PropertyOption(name="NORM",value="Norm"),
-                     @PropertyOption(name="MIN",value="Min"),
-                     @PropertyOption(name="MAX",value="Max")})
-    private static final String PROPERTY_PRIORITY = "priority";
+    public EventingThreadPool() {
+        // default constructor
+    }
+
+    public EventingThreadPool(final ThreadPoolManager tpm, final int poolSize) {
+        this.threadPoolManager = tpm;
+    }
+
+    public void release() {
+        this.deactivate();
+    }
 
     /**
      * Activate this component.
-     * @param context
      */
-    protected void activate(final ComponentContext ctx) {
+    @Activate
+    @Modified
+    protected void activate(final Map<String, Object> props) {
+        final int maxPoolSize = PropertiesUtil.toInteger(props.get(PROPERTY_POOL_SIZE), DEFAULT_POOL_SIZE);
+        this.configure(maxPoolSize);
+    }
+
+    private void configure(final int maxPoolSize) {
         final ModifiableThreadPoolConfig config = new ModifiableThreadPoolConfig();
-        config.setMinPoolSize(PropertiesUtil.toInteger(ctx.getProperties().get(PROPERTY_POOL_SIZE), DEFAULT_POOL_SIZE));
+        config.setMinPoolSize(maxPoolSize);
         config.setMaxPoolSize(config.getMinPoolSize());
         config.setQueueSize(-1); // unlimited
         config.setShutdownGraceful(true);
-        config.setPriority(ThreadPriority.valueOf(PropertiesUtil.toString(ctx.getProperties().get(PROPERTY_PRIORITY), "NORM")));
+        config.setPriority(ThreadPriority.NORM);
         config.setDaemon(true);
         this.threadPool = threadPoolManager.create(config, "Apache Sling Eventing Thread Pool");
     }
 
     /**
      * Deactivate this component.
-     * @param context
      */
-    protected void deactivate(final ComponentContext context) {
+    @Deactivate
+    protected void deactivate() {
         this.threadPoolManager.release(this.threadPool);
     }
 
     /**
      * @see org.apache.sling.commons.threads.ThreadPool#execute(java.lang.Runnable)
      */
-    public void execute(Runnable runnable) {
+    @Override
+    public void execute(final Runnable runnable) {
         threadPool.execute(runnable);
     }
 
     /**
      * @see org.apache.sling.commons.threads.ThreadPool#getConfiguration()
      */
+    @Override
     public ThreadPoolConfig getConfiguration() {
         return threadPool.getConfiguration();
     }
@@ -98,6 +115,7 @@ public class EventingThreadPool implements ThreadPool {
     /**
      * @see org.apache.sling.commons.threads.ThreadPool#getName()
      */
+    @Override
     public String getName() {
         return threadPool.getName();
     }

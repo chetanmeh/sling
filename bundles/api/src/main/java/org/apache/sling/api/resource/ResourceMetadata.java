@@ -18,7 +18,11 @@
  */
 package org.apache.sling.api.resource;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * The <code>ResourceMetadata</code> interface defines the API for the
@@ -33,6 +37,9 @@ import java.util.HashMap;
  * <p>
  * Note, that the prefix <em>sling.</em> to key names is reserved for the
  * Sling implementation.
+ *
+ * Once a resource is returned by the {@link ResourceResolver}, the resource
+ * metadata is made read-only and therefore can't be changed by client code!
  */
 public class ResourceMetadata extends HashMap<String, Object> {
 
@@ -104,6 +111,22 @@ public class ResourceMetadata extends HashMap<String, Object> {
      * known.
      */
     public static final String MODIFICATION_TIME = "sling.modificationTime";
+
+    /**
+     * Returns whether the resource resolver should continue to search for a
+     * resource.
+     * A resource provider can set this flag to indicate that the resource
+     * resolver should search for a provider with a lower priority. If it
+     * finds a resource using such a provider, that resource is returned
+     * instead. If none is found this resource is returned.
+     * This flag should never be manipulated by application code!
+     * The value of this property has no meaning, the resource resolver
+     * just checks whether this flag is set or not.
+     * @since 2.2
+     */
+    public static final String INTERNAL_CONTINUE_RESOLVING = ":org.apache.sling.resource.internal.continue.resolving";
+
+    private boolean isReadOnly = false;
 
     /**
      * Sets the {@link #CHARACTER_ENCODING} property to <code>encoding</code>
@@ -268,5 +291,91 @@ public class ResourceMetadata extends HashMap<String, Object> {
         }
 
         return null;
+    }
+
+    /**
+     * Make this object read-only. All method calls trying to modify this object
+     * result in an exception!
+     * @since 2.3
+     */
+    public void lock() {
+        this.isReadOnly = true;
+    }
+
+    /**
+     * Check if this object is read only and if so throw an unsupported operation exception.
+     */
+    private void checkReadOnly() {
+        if ( this.isReadOnly ) {
+            throw new UnsupportedOperationException(getClass().getSimpleName() + " is locked");
+        }
+    }
+
+    @Override
+    public void clear() {
+        this.checkReadOnly();
+        super.clear();
+    }
+
+    @Override
+    public Object put(final String key, final Object value) {
+        this.checkReadOnly();
+        return super.put(key, value);
+    }
+
+    @Override
+    public void putAll(final Map<? extends String, ? extends Object> m) {
+        this.checkReadOnly();
+        super.putAll(m);
+    }
+
+    @Override
+    public Object remove(final Object key) {
+        this.checkReadOnly();
+        return super.remove(key);
+    }
+    
+    @Override
+    public Object clone() {
+        ResourceMetadata result = (ResourceMetadata) super.clone();
+        result.lockedEntrySet = null;
+        result.lockedKeySet = null;
+        result.lockedValues = null;
+        return result;
+    }
+
+	// volatile for correct double-checked locking in getLockedData()
+    private transient volatile Set<Map.Entry<String, Object>> lockedEntrySet;
+    private transient Set<String> lockedKeySet;
+    private transient Collection<Object> lockedValues;
+
+    private void getLockedData() {
+        if(isReadOnly && lockedEntrySet == null) {
+            synchronized (this) {
+                if(isReadOnly && lockedEntrySet == null) {
+                    lockedEntrySet = Collections.unmodifiableSet(super.entrySet());
+                    lockedKeySet = Collections.unmodifiableSet(super.keySet());
+                    lockedValues = Collections.unmodifiableCollection(super.values());
+                }
+            }
+        }
+    }
+
+    @Override
+    public Set<Map.Entry<String, Object>> entrySet() {
+        getLockedData();
+        return lockedEntrySet != null ? lockedEntrySet : super.entrySet();
+    }
+
+    @Override
+    public Set<String> keySet() {
+        getLockedData();
+        return lockedKeySet != null ? lockedKeySet : super.keySet();
+    }
+
+    @Override
+    public Collection<Object> values() {
+        getLockedData();
+        return lockedValues != null ? lockedValues : super.values();
     }
 }

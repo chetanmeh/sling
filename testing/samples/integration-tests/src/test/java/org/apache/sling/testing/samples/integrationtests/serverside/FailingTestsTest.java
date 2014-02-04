@@ -59,7 +59,7 @@ public class FailingTestsTest extends ServerSideTestsBase {
         
         // Execute tests from the failingtests bundle and verify response
         final Request r = getRequestBuilder().buildPostRequest(JUNIT_SERVLET_PATH 
-                + "/org.apache.sling.testing.samples.failingtests.json");
+                + "/org.apache.sling.testing.samples.failingtests.json").withCredentials(getServerUsername(), getServerPassword());
         getRequestExecutor().execute(r).assertStatus(200);
         
         final JSONArray json = new JSONArray(new JSONTokener((getRequestExecutor().getContent())));
@@ -81,7 +81,7 @@ public class FailingTestsTest extends ServerSideTestsBase {
         
         assertEquals(
                 "testFailsEveryTime(org.apache.sling.testing.samples.failingtests.JUnit4FailingTest): This JUnit4 test fails every time",
-                getFailure(json, "org.apache.sling.testing.samples.failingtests.JUnit4FailingTest")
+                getFailure(json, "testFailsEveryTime(org.apache.sling.testing.samples.failingtests.JUnit4FailingTest")
         );
         
         assertEquals(

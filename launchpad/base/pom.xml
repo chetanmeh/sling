@@ -23,12 +23,12 @@
     <parent>
         <groupId>org.apache.sling</groupId>
         <artifactId>sling</artifactId>
-        <version>13</version>
+        <version>18</version>
         <relativePath>../../parent/pom.xml</relativePath>
     </parent>
 
     <artifactId>org.apache.sling.launchpad.base</artifactId>
-    <version>2.4.1-SNAPSHOT</version>
+    <version>2.5.1-SNAPSHOT</version>
     <packaging>bundle</packaging>
 
     <name>Apache Sling Launchpad Base</name>
@@ -52,7 +52,6 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-antrun-plugin</artifactId>
-                <version>1.7</version>
                 <executions>
                     <execution>
                         <id>testbundles</id>
@@ -60,11 +59,8 @@
                         <configuration>
                             <skip>${maven.test.skip}</skip>
                             <target name="build">
-                                <taskdef resource="aQute/bnd/ant/taskdef.properties"
-                                    classpathref="maven.plugin.classpath" />
-                                <bnd classpath="${project.build.testOutputDirectory}" failok="false"
-                                    exceptions="true" files="src/test/resources/test1.bnd"
-                                    output="${project.build.testOutputDirectory}" />
+                                <taskdef resource="aQute/bnd/ant/taskdef.properties" classpathref="maven.plugin.classpath" />
+                                <bnd classpath="${project.build.testOutputDirectory}" failok="false" exceptions="true" files="src/test/resources/test1.bnd" output="${project.build.testOutputDirectory}" />
                             </target>
                         </configuration>
                         <goals>
@@ -94,7 +90,7 @@
                             system.bundle
                         </Bundle-SymbolicName>
                         <Bundle-DocURL>
-                            http://cwiki.apache.org/SLING/the-sling-launchpad.html
+                            http://sling.apache.org/site/the-sling-launchpad.html
                         </Bundle-DocURL>
                         <Private-Package>
                             <!-- External (app, webapp) components -->
@@ -257,7 +253,7 @@
         <dependency>
             <groupId>org.apache.felix</groupId>
             <artifactId>org.apache.felix.framework</artifactId>
-            <version>4.0.3</version>
+            <version>4.2.0</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -305,7 +301,12 @@
             <artifactId>jmock-junit4</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>1.9.5</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
-
 </project>
 

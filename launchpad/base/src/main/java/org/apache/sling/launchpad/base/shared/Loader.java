@@ -22,6 +22,7 @@ import java.beans.Introspector;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.FileOutputStream;
+import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -50,6 +51,10 @@ public class Loader {
      */
     private final File launchpadHome;
 
+    private final File extLibHome;
+
+    private static final String EXTENSION_LIB_PATH="lib/ext";
+
     /**
      * Creates a loader instance to load from the given launchpad home folder.
      * Besides ensuring the existence of the launchpad home folder, the
@@ -70,6 +75,7 @@ public class Loader {
         }
 
         this.launchpadHome = getLaunchpadHomeFile(launchpadHome);
+        extLibHome = getExtensionLibHome();
         removeOldLauncherJars();
     }
 
@@ -98,10 +104,10 @@ public class Loader {
 
         final ClassLoader loader;
         try {
-            loader = new LauncherClassLoader(launcherJarFile);
+            loader = new LauncherClassLoader(launcherJarFile,getExtLibs());
         } catch (MalformedURLException e) {
             throw new IllegalArgumentException(
-                "Cannot create an URL from the Sling Launcher JAR path name", e);
+                "Cannot create an URL from the  JAR path name", e);
         }
 
         try {
@@ -401,5 +407,50 @@ public class Loader {
 
     /** Meant to be overridden to display or log info */
     protected void info(String msg) {
+    }
+
+    private File getExtensionLibHome(){
+        if(launchpadHome==null || !launchpadHome.exists()){
+            throw new IllegalArgumentException("Sling Home  has not been initialized" );
+        }
+        //assumes launchpadHome is initialized
+        File extLibFile=new File(launchpadHome,EXTENSION_LIB_PATH);
+        if (extLibFile.exists()) {
+            if (!extLibFile.isDirectory()) {
+                throw new IllegalArgumentException("Sling  Extension Lib Home " + extLibFile
+                        + " exists but is not a directory");
+            }
+        } else if (!extLibFile.mkdirs()) {
+            throw new IllegalArgumentException("Sling  Extension Lib Home " + extLibFile
+                    + " cannot be created as a directory");
+        }
+
+        info("Sling  Extension Lib Home : "+extLibFile);
+        return extLibFile;
+
+    }
+
+    private File[] getExtLibs(){
+        if (extLibHome == null || !extLibHome.exists()) {
+            throw new IllegalArgumentException("Sling  Extension Lib Home has not been initialized ");
+        }
+        File[] libs = extLibHome.listFiles(new FilenameFilter() {
+            public boolean accept(File dir, String name) {
+                return (name.endsWith(".jar"));
+            }
+        });
+
+        if (libs == null) {
+            libs = new File[]{};
+        }
+        StringBuilder logStringBldr = new StringBuilder("Sling Extension jars found = [ ");
+        for (int i = 0; i < libs.length; i++) {
+            logStringBldr.append(libs[i]);
+            logStringBldr.append(",");
+        }
+
+        logStringBldr.append(" ] ");
+        info(logStringBldr.toString());
+        return libs;
     }
 }

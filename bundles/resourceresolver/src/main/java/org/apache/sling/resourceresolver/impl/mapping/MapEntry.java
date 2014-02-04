@@ -27,6 +27,7 @@ import java.util.regex.Pattern;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ValueMap;
 import org.apache.sling.resourceresolver.impl.ResourceResolverImpl;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
@@ -37,6 +38,9 @@ import org.slf4j.LoggerFactory;
  * @see "http://cwiki.apache.org/SLING/flexible-resource-resolution.html"
  */
 public class MapEntry implements Comparable<MapEntry> {
+
+    /** default log */
+    private final Logger log = LoggerFactory.getLogger(getClass());
 
     private static final Pattern[] URL_WITH_PORT_MATCH = {
         Pattern.compile("http/([^/]+)(\\.[^\\d/]+)(/.*)?$"),
@@ -207,8 +211,18 @@ public class MapEntry implements Comparable<MapEntry> {
                                 internalRedirect.length);
                 for (final String redir : internalRedirect) {
                     if (!redir.contains("$")) {
-                        prepEntries.add(new MapEntry(redir.concat(endHook),
-                                        status, trailingSlash, url));
+                    	MapEntry mapEntry = null;
+                    	try{
+                    		mapEntry = new MapEntry(redir.concat(endHook), status, trailingSlash, url);
+                    	}catch (IllegalArgumentException iae){
+                    		//ignore this entry
+                            LoggerFactory
+                            .getLogger(MapEntry.class)
+                    		.debug("Ignoring mapping due to exception: " + iae.getMessage(), iae);
+                    	}
+                    	if (mapEntry!=null){
+                    		prepEntries.add(mapEntry);
+                    	}
                     }
                 }
 
@@ -238,7 +252,12 @@ public class MapEntry implements Comparable<MapEntry> {
             url = "^".concat(url);
         }
 
-        this.urlPattern = Pattern.compile(url);
+        try {
+        	this.urlPattern = Pattern.compile(url);
+        } catch (Exception e){
+        	throw new IllegalArgumentException("Bad url pattern: " + url,e);
+        }
+
         this.redirect = redirect;
         this.status = status;
     }
@@ -250,7 +269,11 @@ public class MapEntry implements Comparable<MapEntry> {
             final String[] redirects = getRedirect();
             final String[] results = new String[redirects.length];
             for (int i = 0; i < redirects.length; i++) {
-                results[i] = m.replaceFirst(redirects[i]);
+            	try{
+            		 results[i] = m.replaceFirst(redirects[i]);
+            	}catch(StringIndexOutOfBoundsException siob){
+            		log.debug("Exception while replacing, ignoring entry {} ",redirects[i],siob);
+             	}
             }
             return results;
         }
@@ -281,17 +304,20 @@ public class MapEntry implements Comparable<MapEntry> {
             return 0;
         }
 
-        final int tlen = urlPattern.toString().length();
-        final int mlen = m.urlPattern.toString().length();
+        final String ownPatternString = urlPattern.toString();
+        final String mPatternString = m.urlPattern.toString();
+
+        final int tlen = ownPatternString.length();
+        final int mlen = mPatternString.length();
         if (tlen < mlen) {
             return 1;
         } else if (tlen > mlen) {
             return -1;
         }
 
-        // lentghs are equal, but the entries are not
-        // so order m after this
-        return 1;
+        // lengths are equal, but the entries are not
+        // so order based on the pattern
+        return ownPatternString.toString().compareTo(mPatternString);
     }
 
     // ---------- Object overwrite

@@ -23,13 +23,13 @@
     <parent>
         <groupId>org.apache.sling</groupId>
         <artifactId>sling</artifactId>
-        <version>13</version>
+        <version>18</version>
         <relativePath>../../../parent/pom.xml</relativePath>
     </parent>
 
     <artifactId>org.apache.sling.commons.scheduler</artifactId>
     <packaging>bundle</packaging>
-    <version>2.3.5-SNAPSHOT</version>
+    <version>2.4.3-SNAPSHOT</version>
 
     <name>Apache Sling Scheduler Support</name>
     <description>
@@ -54,21 +54,65 @@
                 <extensions>true</extensions>
                 <configuration>
                     <instructions>
-                        <Import-Package>
-                            *
-                        </Import-Package>
-                        <Export-Package>
-                            org.apache.sling.commons.scheduler;version=2.2.0
-                        </Export-Package>
                         <Private-Package>
                             org.apache.sling.commons.scheduler.impl
                         </Private-Package>
-                         <DynamicImport-Package>
+                        <Import-Package>
+                            !org.apache.sling.discovery,
+                            !commonj.work,
+                            !com.mchange.v2.c3p0,
+                            !javax.ejb,
+                            !javax.jms,
+                            !javax.mail,
+                            !javax.mail.internet,
+                            !oracle.sql,
+                            !org.jboss.logging,
+                            !org.jboss.naming,
+                            !org.jboss.system,
+                            !org.quartz.jobs,
+                            !org.terracotta.toolkit,
+                            !org.terracotta.toolkit.atomic,
+                            !org.terracotta.toolkit.builder,
+                            !org.terracotta.toolkit.cluster,
+                            !org.terracotta.toolkit.collections,
+                            !org.terracotta.toolkit.concurrent.locks,
+                            !org.terracotta.toolkit.config,
+                            !org.terracotta.toolkit.internal,
+                            !org.terracotta.toolkit.internal.concurrent.locks,
+                            !org.terracotta.toolkit.search,
+                            !org.terracotta.toolkit.search.attribute,
+                            !org.terracotta.toolkit.store,
+                            !weblogic.jdbc.jts,
+                            !weblogic.jdbc.vendor.oracle,
+                            *                        
+                        </Import-Package>
+                        <DynamicImport-Package>
+                            org.apache.sling.discovery;version="[1.0,2)",
+                            commonj.work,
+                            com.mchange.v2.c3p0,
                             javax.ejb,
                             javax.jms,
                             javax.mail,
                             javax.mail.internet,
-                            com.mchange.v2.c3p0
+                            oracle.sql,
+                            org.jboss.logging,
+                            org.jboss.naming,
+                            org.jboss.system,
+                            org.quartz.jobs,
+                            org.terracotta.toolkit,
+                            org.terracotta.toolkit.atomic,
+                            org.terracotta.toolkit.builder,
+                            org.terracotta.toolkit.cluster,
+                            org.terracotta.toolkit.collections,
+                            org.terracotta.toolkit.concurrent.locks,
+                            org.terracotta.toolkit.config,
+                            org.terracotta.toolkit.internal,
+                            org.terracotta.toolkit.internal.concurrent.locks,
+                            org.terracotta.toolkit.search,
+                            org.terracotta.toolkit.search.attribute,
+                            org.terracotta.toolkit.store,
+                            weblogic.jdbc.jts,
+                            weblogic.jdbc.vendor.oracle
                         </DynamicImport-Package>
                         <Embed-Dependency>
                             quartz
@@ -115,9 +159,15 @@
             <scope>provided</scope>
         </dependency>
         <dependency>
+            <groupId>org.apache.sling</groupId>
+            <artifactId>org.apache.sling.discovery.api</artifactId>
+            <version>1.0.0</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
             <groupId>org.quartz-scheduler</groupId>
             <artifactId>quartz</artifactId>
-            <version>2.1.1</version>
+            <version>2.2.0</version>
         </dependency>
     </dependencies>
 </project>

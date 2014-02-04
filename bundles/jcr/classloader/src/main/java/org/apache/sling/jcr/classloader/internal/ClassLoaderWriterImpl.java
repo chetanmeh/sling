@@ -44,7 +44,9 @@ import org.apache.felix.scr.annotations.Service;
 import org.apache.sling.commons.classloader.ClassLoaderWriter;
 import org.apache.sling.commons.classloader.DynamicClassLoaderManager;
 import org.apache.sling.commons.mime.MimeTypeService;
+import org.apache.sling.commons.osgi.PropertiesUtil;
 import org.apache.sling.jcr.api.SlingRepository;
+import org.apache.sling.settings.SlingSettingsService;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.ServiceReference;
 import org.osgi.service.component.ComponentContext;
@@ -77,6 +79,10 @@ public class ClassLoaderWriterImpl
     @org.apache.felix.scr.annotations.Property(value=CLASS_PATH_DEFAULT)
     private static final String CLASS_PATH_PROP = "classpath";
 
+    private static final boolean APPEND_ID_DEFAULT = true;
+
+    @org.apache.felix.scr.annotations.Property(boolValue=APPEND_ID_DEFAULT)
+    private static final String APPEND_ID_PROP = "appendId";
 
     /** Node type for packages/folders. */
     private static final String NT_FOLDER = "nt:folder";
@@ -87,14 +93,17 @@ public class ClassLoaderWriterImpl
     @org.apache.felix.scr.annotations.Property(value=OWNER_DEFAULT)
     private static final String OWNER_PROP = "owner";
 
-    /** The owner of the class loader / jcr user. */
-    private String classLoaderOwner;
-
     @Reference
-    private SlingRepository repository;
+    private SlingSettingsService settings;
+
+    /** The owner of the class loader / JCR user. */
+    private String classLoaderOwner;
 
     /** The configured class path. */
     private String classPath;
+
+    @Reference
+    private SlingRepository repository;
 
     @Reference(policy=ReferencePolicy.DYNAMIC, cardinality=ReferenceCardinality.OPTIONAL_UNARY)
     private MimeTypeService mimeTypeService;
@@ -112,29 +121,21 @@ public class ClassLoaderWriterImpl
     private volatile RepositoryClassLoader repositoryClassLoader;
 
     /**
-     * The dynamic class loader used as the parent of the repository
-     * class loader.
-     */
-    private volatile ClassLoader dynamicClassLoader;
-
-    /**
      * Activate this component.
-     * @param props The configuration properties
+     * @param componentContext The component context
+     * @param properties The configuration properties
      */
     @Activate
     protected void activate(final ComponentContext componentContext, final Map<String, Object> properties) {
-        Object prop = properties.get(CLASS_PATH_PROP);
-        if ( prop instanceof String[] && ((String[])prop).length > 0 ) {
-            this.classPath = ((String[])prop)[0];
-        } else {
-            this.classPath = CLASS_PATH_DEFAULT;
-        }
+        this.classPath = PropertiesUtil.toString(properties.get(CLASS_PATH_PROP), CLASS_PATH_DEFAULT);
         if ( this.classPath.endsWith("/") ) {
             this.classPath = this.classPath.substring(0, this.classPath.length() - 1);
         }
+        if ( PropertiesUtil.toBoolean(properties.get(APPEND_ID_PROP), APPEND_ID_DEFAULT) ) {
+            this.classPath = this.classPath + '/' + this.settings.getSlingId();
+        }
 
-        prop = properties.get(OWNER_PROP);
-        this.classLoaderOwner = (prop instanceof String)? (String) prop : OWNER_DEFAULT;
+        this.classLoaderOwner = PropertiesUtil.toString(properties.get(OWNER_PROP), OWNER_DEFAULT);
 
         this.callerBundle = componentContext.getUsingBundle();
     }
@@ -143,8 +144,9 @@ public class ClassLoaderWriterImpl
      * Deactivate this component.
      */
     @Deactivate
-    protected void deactivate() {
-        destroyRepositoryClassLoader();
+    protected synchronized void deactivate() {
+        this.destroyRepositoryClassLoader();
+        this.callerBundle = null;
     }
 
     /**
@@ -157,7 +159,7 @@ public class ClassLoaderWriterImpl
     }
 
     /**
-     * Called to handle unbinding the DynamicClassLoaderManager service
+     * Called to handle unbinding of the DynamicClassLoaderManager service
      * reference
      */
     @SuppressWarnings("unused")
@@ -173,14 +175,15 @@ public class ClassLoaderWriterImpl
      * being used.
      */
     private void destroyRepositoryClassLoader() {
-        if (this.repositoryClassLoader != null) {
-            this.repositoryClassLoader.destroy();
+        final RepositoryClassLoader rcl = this.repositoryClassLoader;
+        if (rcl != null) {
             this.repositoryClassLoader = null;
-        }
-
-        if (this.dynamicClassLoader != null) {
-            this.callerBundle.getBundleContext().ungetService(this.dynamicClassLoaderManager);
-            this.dynamicClassLoader = null;
+            rcl.destroy();
+            final ServiceReference localDynamicClassLoaderManager = this.dynamicClassLoaderManager;
+            final Bundle localCallerBundle = this.callerBundle;
+            if ( localDynamicClassLoaderManager != null && localCallerBundle != null ) {
+                localCallerBundle.getBundleContext().ungetService(localDynamicClassLoaderManager);
+            }
         }
     }
 
@@ -188,7 +191,7 @@ public class ClassLoaderWriterImpl
      * Return a new session.
      */
     public Session createSession() throws RepositoryException {
-        // get an administrative session for potentiall impersonation
+        // get an administrative session for potential impersonation
         final Session admin = this.repository.loginAdministrative(null);
 
         // do use the admin session, if the admin's user id is the same as owner
@@ -211,7 +214,7 @@ public class ClassLoaderWriterImpl
         return this.repository != null;
     }
 
-    private synchronized ClassLoader getOrCreateClassLoader() {
+    private synchronized RepositoryClassLoader getOrCreateClassLoader() {
         if ( this.repositoryClassLoader == null || !this.repositoryClassLoader.isLive() ) {
 
             // make sure to cleanup any existing class loader
@@ -219,16 +222,22 @@ public class ClassLoaderWriterImpl
 
             // get the dynamic class loader for the bundle using this
             // class loader writer
-            DynamicClassLoaderManager dclm = (DynamicClassLoaderManager) this.callerBundle.getBundleContext().getService(
+            final DynamicClassLoaderManager dclm = (DynamicClassLoaderManager) this.callerBundle.getBundleContext().getService(
                 this.dynamicClassLoaderManager);
-            this.dynamicClassLoader = dclm.getDynamicClassLoader();
 
             this.repositoryClassLoader = new RepositoryClassLoader(
                     this.classPath,
                     this,
-                    this.dynamicClassLoader);
+                    dclm.getDynamicClassLoader());
         }
         return this.repositoryClassLoader;
+    }
+
+    private synchronized void handleChangeEvent(final String path) {
+        final RepositoryClassLoader rcl = this.repositoryClassLoader;
+        if ( rcl != null ) {
+            rcl.handleEvent(path);
+        }
     }
 
     /**
@@ -236,6 +245,7 @@ public class ClassLoaderWriterImpl
      */
     public boolean delete(final String name) {
         final String path = cleanPath(name);
+        this.handleChangeEvent(path);
         Session session = null;
         try {
             session = createSession();
@@ -243,7 +253,6 @@ public class ClassLoaderWriterImpl
                 Item fileItem = session.getItem(path);
                 fileItem.remove();
                 session.save();
-                this.repositoryClassLoader.handleEvent(path);
                 return true;
             }
         } catch (final RepositoryException re) {
@@ -270,16 +279,18 @@ public class ClassLoaderWriterImpl
      * @see org.apache.sling.commons.classloader.ClassLoaderWriter#rename(java.lang.String, java.lang.String)
      */
     public boolean rename(final String oldName, final String newName) {
+        final String oldPath = cleanPath(oldName);
+        final String newPath = cleanPath(newName);
+
         Session session = null;
         try {
-            final String oldPath = cleanPath(oldName);
-            final String newPath = cleanPath(newName);
-
             session = this.createSession();
             session.move(oldPath, newPath);
             session.save();
-            this.repositoryClassLoader.handleEvent(oldName);
-            this.repositoryClassLoader.handleEvent(newName);
+
+            this.handleChangeEvent(oldName);
+            this.handleChangeEvent(newName);
+
             return true;
         } catch (final RepositoryException re) {
             logger.error("Cannot rename " + oldName + " to " + newName, re);
@@ -289,18 +300,18 @@ public class ClassLoaderWriterImpl
             }
         }
 
-        // fallback to false in case of error or non-existence of oldFileName
+        // fall back to false in case of error or non-existence of oldFileName
         return false;
     }
 
     /**
      * Creates a folder hierarchy in the repository.
-     * We synchronize this method to reduce potential conflics.
+     * We synchronize this method to reduce potential conflicts.
      * Although each write uses its own session it might occur
      * that more than one session tries to create the same path
      * (or parent path) at the same time. By synchronizing this
      * we avoid this situation - however this method is written
-     * in a failsafe manner anyway.
+     * in a fail safe manner anyway.
      */
     private synchronized boolean mkdirs(final Session session, final String path) {
         try {
@@ -325,7 +336,7 @@ public class ClassLoaderWriterImpl
                         // create the node "at the same time"
                         current = parentNode.addNode(names[i], NT_FOLDER);
                         session.save();
-                    } catch (RepositoryException re) {
+                    } catch (final RepositoryException re) {
                         // let's first refresh the session
                         // we don't catch an exception here, because if
                         // session refresh fails, we might have a serious problem!
@@ -390,6 +401,7 @@ public class ClassLoaderWriterImpl
         /**
          * @see java.io.ByteArrayOutputStream#close()
          */
+        @Override
         public void close() throws IOException {
             super.close();
 
@@ -464,7 +476,7 @@ public class ClassLoaderWriterImpl
                 contentNode.setProperty("jcr:mimeType", mimeType);
 
                 session.save();
-                this.repositoryOutputProvider.repositoryClassLoader.handleEvent(fileName);
+                this.repositoryOutputProvider.handleChangeEvent(fileName);
             } catch (final RepositoryException re) {
                 throw (IOException)new IOException("Cannot write file " + fileName + ", reason: " + re.toString()).initCause(re);
             } finally {
@@ -486,7 +498,16 @@ public class ClassLoaderWriterImpl
             session = this.createSession();
             if ( session.itemExists(path) ) {
                 final Property prop = (Property)session.getItem(path);
-                return prop.getStream();
+                final InputStream is = prop.getStream();
+                final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                int l = 0;
+                final byte[] buf = new byte[2048];
+                while ( (l = is.read(buf)) > -1 ) {
+                    if ( l > 0 ) {
+                        baos.write(buf, 0, l);
+                    }
+                }
+                return new ByteArrayInputStream(baos.toByteArray());
             }
             throw new FileNotFoundException("Unable to find " + name);
         } catch (final RepositoryException re) {
@@ -519,7 +540,7 @@ public class ClassLoaderWriterImpl
             }
         }
 
-        // fallback to "non-existant" in case of problems
+        // fall back to "non-existent" in case of problems
         return -1;
     }
 

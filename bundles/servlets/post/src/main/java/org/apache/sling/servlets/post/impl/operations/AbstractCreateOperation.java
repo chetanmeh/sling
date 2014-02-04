@@ -27,14 +27,9 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 import javax.jcr.Node;
-import javax.jcr.PathNotFoundException;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
-import javax.jcr.lock.LockException;
-import javax.jcr.nodetype.ConstraintViolationException;
-import javax.jcr.nodetype.NoSuchNodeTypeException;
 import javax.jcr.nodetype.NodeType;
-import javax.jcr.version.VersionException;
 import javax.servlet.ServletException;
 
 import org.apache.sling.api.SlingHttpServletRequest;
@@ -51,6 +46,7 @@ import org.apache.sling.servlets.post.NodeNameGenerator;
 import org.apache.sling.servlets.post.PostResponse;
 import org.apache.sling.servlets.post.SlingPostConstants;
 import org.apache.sling.servlets.post.VersioningConfiguration;
+import org.apache.sling.servlets.post.impl.helper.Chunk;
 import org.apache.sling.servlets.post.impl.helper.DefaultNodeNameGenerator;
 import org.apache.sling.servlets.post.impl.helper.RequestProperty;
 
@@ -120,8 +116,7 @@ abstract class AbstractCreateOperation extends AbstractPostOperation {
                     final Map<String, RequestProperty> reqProperties,
                     final List<Modification> changes,
                     final VersioningConfiguration versioningConfiguration)
-   throws PathNotFoundException,
-            RepositoryException, NoSuchNodeTypeException, VersionException, ConstraintViolationException, LockException {
+    throws RepositoryException {
         final String nodeType = getPrimaryType(reqProperties, path);
         if (nodeType != null) {
             final Resource rsrc = resolver.getResource(path);
@@ -155,8 +150,7 @@ abstract class AbstractCreateOperation extends AbstractPostOperation {
                     final Map<String, RequestProperty> reqProperties,
                     final List<Modification> changes,
                     final VersioningConfiguration versioningConfiguration)
-    throws PathNotFoundException,
-            RepositoryException, NoSuchNodeTypeException, VersionException, ConstraintViolationException, LockException {
+    throws RepositoryException {
         final String[] mixins = getMixinTypes(reqProperties, path);
         if (mixins != null) {
 
@@ -374,6 +368,50 @@ abstract class AbstractCreateOperation extends AbstractPostOperation {
 
                 continue;
             }
+            if (propPath.endsWith(SlingPostConstants.SUFFIX_OFFSET)) {
+                final RequestProperty prop = getOrCreateRequestProperty(
+                        reqProperties, propPath,
+                        SlingPostConstants.SUFFIX_OFFSET);
+                if (e.getValue().length == 1) {
+                    Chunk chunk = prop.getChunk();
+                    if(chunk == null){
+                        chunk = new Chunk();
+                    }
+                    chunk.setOffsetValue(Long.parseLong(e.getValue()[0].toString()));
+                    prop.setChunk(chunk);
+                }
+                continue;
+            }
+
+            if (propPath.endsWith(SlingPostConstants.SUFFIX_COMPLETED)) {
+                final RequestProperty prop = getOrCreateRequestProperty(
+                        reqProperties, propPath,
+                        SlingPostConstants.SUFFIX_COMPLETED);
+                if (e.getValue().length == 1) {
+                    Chunk chunk = prop.getChunk();
+                    if(chunk == null){
+                        chunk = new Chunk();
+                    }
+                    chunk.setCompleted(Boolean.parseBoolean((e.getValue()[0].toString())));
+                    prop.setChunk(chunk);
+                }
+                continue;
+            }
+
+            if (propPath.endsWith(SlingPostConstants.SUFFIX_LENGTH)) {
+                final RequestProperty prop = getOrCreateRequestProperty(
+                        reqProperties, propPath,
+                        SlingPostConstants.SUFFIX_LENGTH);
+                if (e.getValue().length == 1) {
+                    Chunk chunk = prop.getChunk();
+                    if(chunk == null){
+                        chunk = new Chunk();
+                    }
+                    chunk.setLength(Long.parseLong(e.getValue()[0].toString()));
+                    prop.setChunk(chunk);
+                }
+                continue;
+            }
 
             // plain property, create from values
             final RequestProperty prop = getOrCreateRequestProperty(reqProperties,
@@ -479,6 +517,9 @@ abstract class AbstractCreateOperation extends AbstractPostOperation {
         while (startingResource == null) {
             if (startingResourcePath.equals("/")) {
                 startingResource = resolver.getResource("/");
+                if (startingResource == null){
+                	throw new PersistenceException("Access denied for root resource, resource can't be created: " + path);
+                }
             } else if (resolver.getResource(startingResourcePath) != null) {
                 startingResource = resolver.getResource(startingResourcePath);
                 updateNodeType(resolver, startingResourcePath, reqProperties, changes, versioningConfiguration);

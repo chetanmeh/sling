@@ -45,12 +45,17 @@ import org.apache.sling.api.resource.ModifyingResourceProvider;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.QueriableResourceProvider;
 import org.apache.sling.api.resource.QuerySyntaxException;
+import org.apache.sling.api.resource.RefreshableResourceProvider;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceProvider;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
+import org.apache.sling.api.resource.ValueMap;
+import org.apache.sling.api.wrappers.ValueMapDecorator;
+import org.apache.sling.jcr.resource.JcrResourceConstants;
 import org.apache.sling.jcr.resource.JcrResourceUtil;
 import org.apache.sling.jcr.resource.internal.JcrModifiableValueMap;
+import org.apache.sling.jcr.resource.internal.NodeUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -66,6 +71,7 @@ public class JcrResourceProvider
                DynamicResourceProvider,
                AttributableResourceProvider,
                QueriableResourceProvider,
+               RefreshableResourceProvider,
                ModifyingResourceProvider {
 
     /** column name for node path */
@@ -77,6 +83,14 @@ public class JcrResourceProvider
     @SuppressWarnings("deprecation")
     private static final String DEFAULT_QUERY_LANGUAGE = Query.XPATH;
 
+    private static final Set<String> IGNORED_PROPERTIES = new HashSet<String>();
+    static {
+        IGNORED_PROPERTIES.add(NodeUtil.MIXIN_TYPES);
+        IGNORED_PROPERTIES.add(NodeUtil.NODE_TYPE);
+        IGNORED_PROPERTIES.add("jcr:created");
+        IGNORED_PROPERTIES.add("jcr:createdBy");
+    }
+
     /** Default logger */
     private final Logger log = LoggerFactory.getLogger(getClass());
 
@@ -85,14 +99,14 @@ public class JcrResourceProvider
 
     private final Session session;
     private final ClassLoader dynamicClassLoader;
-    private final boolean closeSession;
+    private final RepositoryHolder repositoryHolder;
 
     public JcrResourceProvider(final Session session,
                                final ClassLoader dynamicClassLoader,
-                               final boolean closeSession) {
+                               final RepositoryHolder repositoryHolder) {
         this.session = session;
         this.dynamicClassLoader = dynamicClassLoader;
-        this.closeSession = closeSession;
+        this.repositoryHolder = repositoryHolder;
     }
 
     // ---------- ResourceProvider interface ----------------------------------
@@ -220,9 +234,7 @@ public class JcrResourceProvider
      * @see org.apache.sling.api.resource.DynamicResourceProvider#close()
      */
     public void close() {
-        if ( this.closeSession && !closed) {
-            session.logout();
-        }
+        this.repositoryHolder.release();
         this.closed = true;
     }
 
@@ -257,7 +269,7 @@ public class JcrResourceProvider
     /**
      * @see org.apache.sling.api.resource.QueriableResourceProvider#queryResources(ResourceResolver, java.lang.String, java.lang.String)
      */
-    public Iterator<Map<String, Object>> queryResources(final ResourceResolver resolver, final String query, final String language) {
+    public Iterator<ValueMap> queryResources(final ResourceResolver resolver, final String query, final String language) {
         checkClosed();
 
         final String queryLanguage = isSupportedQueryLanguage(language) ? language : DEFAULT_QUERY_LANGUAGE;
@@ -267,13 +279,13 @@ public class JcrResourceProvider
                 queryLanguage);
             final String[] colNames = result.getColumnNames();
             final RowIterator rows = result.getRows();
-            return new Iterator<Map<String, Object>>() {
+            return new Iterator<ValueMap>() {
                 public boolean hasNext() {
                     return rows.hasNext();
                 };
 
-                public Map<String, Object> next() {
-                    Map<String, Object> row = new HashMap<String, Object>();
+                public ValueMap next() {
+                    final Map<String, Object> row = new HashMap<String, Object>();
                     try {
                         Row jcrRow = rows.nextRow();
                         boolean didPath = false;
@@ -305,7 +317,7 @@ public class JcrResourceProvider
                             "queryResources$next: Problem accessing row values",
                             re);
                     }
-                    return row;
+                    return new ValueMapDecorator(row);
                 }
 
                 public void remove() {
@@ -384,8 +396,32 @@ public class JcrResourceProvider
     public Resource create(final ResourceResolver resolver, final String path, final Map<String, Object> properties)
     throws PersistenceException {
         // check for node type
-        final Object nodeObj = (properties != null ? properties.get("jcr:primaryType") : null);
-        final String nodeType = (nodeObj != null ? nodeObj.toString() : null);
+        final Object nodeObj = (properties != null ? properties.get(NodeUtil.NODE_TYPE) : null);
+        // check for sling:resourcetype
+        final String nodeType;
+        if ( nodeObj != null ) {
+            nodeType = nodeObj.toString();
+        } else {
+            final Object rtObj =  (properties != null ? properties.get(JcrResourceConstants.SLING_RESOURCE_TYPE_PROPERTY) : null);
+            boolean isNodeType = false;
+            if ( rtObj != null ) {
+                final String resourceType = rtObj.toString();
+                if ( resourceType.indexOf(':') != -1 && resourceType.indexOf('/') == -1 ) {
+                    try {
+                        this.session.getWorkspace().getNodeTypeManager().getNodeType(resourceType);
+                        isNodeType = true;
+                    } catch (final RepositoryException ignore) {
+                        // we expect this, if this isn't a valid node type, therefore ignoring
+                    }
+                }
+            }
+            if ( isNodeType ) {
+                nodeType = rtObj.toString();
+            } else {
+                nodeType = null;
+            }
+        }
+        Node node = null;
         try {
             final int lastPos = path.lastIndexOf('/');
             final Node parent;
@@ -395,7 +431,6 @@ public class JcrResourceProvider
                 parent = (Node)this.session.getItem(path.substring(0, lastPos));
             }
             final String name = path.substring(lastPos + 1);
-            final Node node;
             if ( nodeType != null ) {
                 node = parent.addNode(name, nodeType);
             } else {
@@ -405,11 +440,21 @@ public class JcrResourceProvider
             if ( properties != null ) {
                 // create modifiable map
                 final JcrModifiableValueMap jcrMap = new JcrModifiableValueMap(node, this.dynamicClassLoader);
+                // check mixin types first
+                final Object value = properties.get(NodeUtil.MIXIN_TYPES);
+                if ( value != null ) {
+                    jcrMap.put(NodeUtil.MIXIN_TYPES, value);
+                }
                 for(final Map.Entry<String, Object> entry : properties.entrySet()) {
-                    if ( !"jcr:primaryType".equals(entry.getKey()) ) {
+                    if ( !IGNORED_PROPERTIES.contains(entry.getKey()) ) {
                         try {
                             jcrMap.put(entry.getKey(), entry.getValue());
                         } catch (final IllegalArgumentException iae) {
+                            try {
+                                node.remove();
+                            } catch ( final RepositoryException re) {
+                                // we ignore this
+                            }
                             throw new PersistenceException(iae.getMessage(), iae, path, entry.getKey());
                         }
                     }
@@ -418,6 +463,13 @@ public class JcrResourceProvider
 
             return new JcrNodeResource(resolver, node, this.dynamicClassLoader);
         } catch (final RepositoryException e) {
+            if ( node != null ) {
+                try {
+                    node.remove();
+                } catch ( final RepositoryException re) {
+                    // we ignore this
+                }
+            }
             throw new PersistenceException("Unable to create node at " + path, e, path, null);
         }
     }
@@ -430,10 +482,11 @@ public class JcrResourceProvider
         try {
             if ( session.itemExists(path) ) {
                 session.getItem(path).remove();
+            } else {
+                throw new PersistenceException("Unable to delete resource at " + path + ". Resource does not exist.", null, path, null);
             }
-            throw new PersistenceException("Unable to delete item at " + path, null, path, null);
         } catch (final RepositoryException e) {
-            throw new PersistenceException("Unable to delete item at " + path, e, path, null);
+            throw new PersistenceException("Unable to delete resource at " + path, e, path, null);
         }
     }
 
@@ -469,5 +522,16 @@ public class JcrResourceProvider
             log.warn("Unable to check session for pending changes.", ignore);
         }
         return false;
+    }
+
+    /**
+     * @see org.apache.sling.api.resource.RefreshableResourceProvider#refresh()
+     */
+    public void refresh() {
+        try {
+            this.session.refresh(true);
+        } catch (final RepositoryException ignore) {
+            log.warn("Unable to refresh session.", ignore);
+        }
     }
 }

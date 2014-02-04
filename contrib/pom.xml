@@ -64,7 +64,6 @@
         <plugins>
            <plugin>
                 <artifactId>maven-clean-plugin</artifactId>
-                <version>2.2</version>
                 <configuration>
                     <filesets>
                         <fileset>
@@ -88,18 +87,27 @@
           <module>commons/html</module>
           <module>extensions/apt/parser</module>
           <module>extensions/apt/servlet</module>
+          <module>extensions/collection</module>
           <module>extensions/dojo</module>
           <module>extensions/dojo-sling</module>
+          <module>extensions/ftpserver</module>
           <module>extensions/gwt/sample</module>
           <module>extensions/gwt/servlet</module>
           <module>extensions/i18n</module>
-          <module>extensions/obr</module>
+          <module>extensions/jmxprovider</module>
           <module>extensions/mongodb</module>
+          <module>extensions/obr</module>
           <module>extensions/reqanalyzer</module>
+          <module>extensions/resourcemerger</module>
           <module>extensions/rewriter</module>
+          <module>extensions/tenant</module>
+          <module>extensions/replication</module>
           <module>jcr/jackrabbit-client</module>
           <module>jcr/compiler</module>
           <module>jcr/prefs</module>
+          <module>jcr/resourcesecurity</module>
+          <module>launchpad/karaf</module>
+          <module>launchpad/testing</module>
           <module>scripting/script-console</module>
           <module>scripting/jsp-taglib-atom</module>
           <module>scripting/freemarker</module>
@@ -109,7 +117,6 @@
           <module>scripting/ruby</module>
           <module>scripting/velocity</module>
           <module>scripting/xproc</module>
-          <module>launchpad/smx-kernel</module>
     </modules>
     <profiles>
         <profile>
@@ -125,9 +132,9 @@
             </modules>
         </profile>
         <profile>
-            <id>java6</id>
+            <id>java6plus</id>
             <activation>
-                <jdk>1.6</jdk>
+                <jdk>[1.6,)</jdk>
             </activation>
             <modules>
                 <module>scripting/scala/script</module>

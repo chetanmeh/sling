@@ -64,7 +64,6 @@
         <plugins>
             <plugin>
                 <artifactId>maven-clean-plugin</artifactId>
-                <version>2.2</version>
                 <configuration>
                     <filesets>
                         <fileset>
@@ -81,23 +80,24 @@
 
     <!-- List modules to be included in the build here ! -->
     <modules>
-        <module>maven/apache-sling-jar-resource-bundle</module>
+        <module>tooling/maven/apache-sling-jar-resource-bundle</module>
 
         <!-- The real Sling Parent Project -->
         <module>parent</module>
 
         <!-- The Maven Plugins and Archeyptes-->
-        <module>maven/adapter-annotations</module>
-        <module>maven/maven-jcrocm-plugin</module>
-        <module>maven/maven-jspc-plugin</module>
-        <module>maven/maven-sling-plugin</module>
-        <module>maven/maven-launchpad-plugin</module>
-        <module>maven/archetypes/launchpad-standalone</module>
-        <module>maven/archetypes/launchpad-webapp</module>
-        <module>maven/archetypes/initial-content</module>
-        <module>maven/archetypes/servlet</module>
-        <module>maven/archetypes/bundle</module>
-        <module>maven/archetypes/bundle-for-jcrinstall</module>
+        <module>tooling/maven/adapter-annotations</module>
+        <module>tooling/maven/maven-jcrocm-plugin</module>
+        <module>tooling/maven/maven-jspc-plugin</module>
+        <module>tooling/maven/maven-sling-plugin</module>
+        <module>tooling/maven/maven-launchpad-plugin</module>
+        <module>tooling/maven/archetypes/launchpad-standalone</module>
+        <module>tooling/maven/archetypes/launchpad-webapp</module>
+        <module>tooling/maven/archetypes/initial-content</module>
+        <module>tooling/maven/archetypes/servlet</module>
+        <module>tooling/maven/archetypes/bundle</module>
+        <module>tooling/maven/archetypes/bundle-for-jcrinstall</module>
+        <module>tooling/maven/archetypes/taglib</module>
 
         <!-- The Sling API -->
         <module>bundles/api</module>
@@ -136,15 +136,21 @@
         <module>bundles/jcr/base</module>
         <module>bundles/jcr/classloader</module>
         <module>bundles/jcr/contentloader</module>
+        <!--
+        <module>bundles/jcr/jackrabbit-base</module>
+        -->
         <module>bundles/jcr/jackrabbit-server</module>
         <module>bundles/jcr/jackrabbit-usermanager</module>
         <module>bundles/jcr/jackrabbit-accessmanager</module>
+        <module>bundles/jcr/jcr-wrapper</module>
         <module>bundles/jcr/ocm</module>
         <module>bundles/jcr/resource</module>
         <module>bundles/jcr/registration</module>
         <module>bundles/jcr/webdav</module>
         <module>bundles/jcr/davex</module>
         <module>bundles/jcr/webconsole</module>
+        <module>bundles/jcr/oak-server</module>
+        <module>bundles/jcr/it-jackrabbit-oak</module>
         
         <!-- Servlets -->
         <module>bundles/servlets/resolver</module>
@@ -163,23 +169,37 @@
         <!-- Extensions -->
         <module>bundles/extensions/adapter</module>
         <module>bundles/extensions/bundleresource</module>
+        <module>bundles/extensions/discovery/api</module>
+        <module>bundles/extensions/discovery/impl</module>
+        <module>bundles/extensions/discovery/support</module>
+        <module>bundles/extensions/discovery/standalone</module>
         <module>bundles/extensions/event</module>
+        <module>bundles/extensions/feature-flags</module>
         <module>bundles/extensions/fsresource</module>
+        <module>bundles/extensions/javax.activation</module>
+        <module>bundles/extensions/serviceusermapper</module>
         <module>bundles/extensions/settings</module>
         <module>bundles/extensions/threaddump</module>
         <module>bundles/extensions/webconsolebranding</module>
         <module>bundles/extensions/webconsolesecurityprovider</module>
         <module>bundles/extensions/groovy</module>
         <module>bundles/extensions/explorer</module>
-        
+        <module>bundles/extensions/healthcheck</module>
+        <module>bundles/resourceaccesssecurity</module>
+        <module>bundles/extensions/models/api</module>
+        <module>bundles/extensions/models/impl</module>
+        <module>bundles/extensions/models/integration-tests</module>
+
         <!-- Testing Support -->
         <module>testing/tools</module>
         <module>testing/junit/core</module>
         <module>testing/junit/scriptable</module>
+        <module>testing/junit/healthcheck</module>
         <module>testing/junit/remote</module>
+        <module>testing/resourceresolver-mock</module>
+        <module>testing/sling-pax-util</module>
         
         <!-- Installer -->
-        <module>installer/api</module>
         <module>installer/core</module>
         <module>installer/console</module>
         <module>installer/providers/file</module>
@@ -213,6 +233,7 @@
             <modules>
                 <module>launchpad/test-services</module>
                 <module>launchpad/test-services-war</module>
+                <module>launchpad/test-fragment</module>
                 <module>launchpad/test-bundles</module>
                 <module>launchpad/integration-tests</module>
                 <module>launchpad/testing</module>

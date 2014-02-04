@@ -23,12 +23,12 @@
     <parent>
         <groupId>org.apache.sling</groupId>
         <artifactId>sling</artifactId>
-        <version>13</version>
+        <version>18</version>
         <relativePath>../../../parent/pom.xml</relativePath>
     </parent>
 
     <artifactId>org.apache.sling.junit.core</artifactId>
-    <version>1.0.7-SNAPSHOT</version>
+    <version>1.0.9-SNAPSHOT</version>
     <packaging>bundle</packaging>
 
     <name>Apache Sling JUnit Core</name>
@@ -36,6 +36,7 @@
     
     <properties>
         <junit.version>4.8.2</junit.version>
+        <jacoco.version>0.6.2.201302030002</jacoco.version>
     </properties>
 
     <scm>
@@ -58,8 +59,8 @@
                     <instructions>
                         <Bundle-Activator>org.apache.sling.junit.Activator</Bundle-Activator>
                         <Export-Package>
-                            org.apache.sling.junit;version=${project.version},
-                            org.apache.sling.junit.annotations;version=${project.version}
+                            org.apache.sling.junit;version=1.1.0,
+                            org.apache.sling.junit.annotations;version=1.0.8,
                         </Export-Package>
                         <_exportcontents>
                             junit.framework;version=${junit.version},
@@ -70,12 +71,44 @@
                             org.junit.runners.*;version=${junit.version}
                         </_exportcontents>
                         <Private-Package>org.apache.sling.junit.impl.*</Private-Package>
-                        <Embed-Dependency>*;artifactId=junit</Embed-Dependency>
+                        <Embed-Dependency>org.jacoco.agent;classifier=runtime;inline=org/jacoco/agent/rt/IAgent.class,*;artifactId=junit</Embed-Dependency>
                     </instructions>
                 </configuration>
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>extractJacocoAgent</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-dependency-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>unpack</goal>
+                                </goals>
+                                <configuration>
+                                    <artifactItems>
+                                        <artifactItem>
+                                            <groupId>org.jacoco</groupId>
+                                            <artifactId>org.jacoco.agent</artifactId>
+                                            <version>${jacoco.version}</version>
+                                            <includes>jacocoagent.jar</includes>
+                                            <outputDirectory>${project.build.directory}</outputDirectory>
+                                        </artifactItem>
+                                    </artifactItems>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
     <dependencies>
         <dependency>
@@ -112,5 +145,13 @@
             <version>${junit.version}</version>
             <scope>provided</scope>
         </dependency>
+        <dependency>
+            <groupId>org.jacoco</groupId>
+            <artifactId>org.jacoco.agent</artifactId>
+            <classifier>runtime</classifier>
+            <version>${jacoco.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
     </dependencies>
 </project>

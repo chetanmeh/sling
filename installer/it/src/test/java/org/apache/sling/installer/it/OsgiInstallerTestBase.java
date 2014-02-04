@@ -19,14 +19,12 @@ package org.apache.sling.installer.it;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.fail;
-import static org.ops4j.pax.exam.CoreOptions.felix;
+import static org.ops4j.pax.exam.CoreOptions.junitBundles;
 import static org.ops4j.pax.exam.CoreOptions.mavenBundle;
 import static org.ops4j.pax.exam.CoreOptions.options;
 import static org.ops4j.pax.exam.CoreOptions.provision;
 import static org.ops4j.pax.exam.CoreOptions.systemProperty;
-import static org.ops4j.pax.exam.CoreOptions.waitForFrameworkStartup;
-import static org.ops4j.pax.exam.container.def.PaxRunnerOptions.logProfile;
-import static org.ops4j.pax.exam.container.def.PaxRunnerOptions.vmOption;
+import static org.ops4j.pax.exam.CoreOptions.when;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -34,11 +32,15 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Dictionary;
+import java.util.Enumeration;
+import java.util.Hashtable;
 import java.util.List;
+
+import javax.inject.Inject;
 
 import org.apache.sling.installer.api.InstallableResource;
 import org.apache.sling.installer.api.OsgiInstaller;
-import org.ops4j.pax.exam.Inject;
+import org.junit.Before;
 import org.ops4j.pax.exam.Option;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleContext;
@@ -49,6 +51,9 @@ import org.osgi.framework.FrameworkListener;
 import org.osgi.framework.ServiceReference;
 import org.osgi.framework.SynchronousBundleListener;
 import org.osgi.framework.Version;
+import org.osgi.framework.namespace.PackageNamespace;
+import org.osgi.framework.wiring.BundleCapability;
+import org.osgi.framework.wiring.BundleWiring;
 import org.osgi.service.cm.Configuration;
 import org.osgi.service.cm.ConfigurationAdmin;
 import org.osgi.service.log.LogService;
@@ -56,10 +61,9 @@ import org.osgi.service.packageadmin.PackageAdmin;
 import org.osgi.util.tracker.ServiceTracker;
 
 /** Base class for OsgiInstaller testing */
-class OsgiInstallerTestBase implements FrameworkListener {
-	private final static String POM_VERSION = System.getProperty("osgi.installer.pom.version");
-    private final static String CONFIG_VERSION = System.getProperty("installer.configuration.version");
-    private final static String API_VERSION = System.getProperty("installer.api.version");
+public class OsgiInstallerTestBase implements FrameworkListener {
+	private final static String POM_VERSION = System.getProperty("osgi.installer.pom.version", "POM_VERSION_NOT_SET");
+    private final static String CONFIG_VERSION = System.getProperty("installer.configuration.version", "INSTALLER_VERSION_NOT_SET");
 
 	public final static String JAR_EXT = ".jar";
 	private int packageRefreshEventsCount;
@@ -67,7 +71,7 @@ class OsgiInstallerTestBase implements FrameworkListener {
 
 	protected OsgiInstaller installer;
 
-	public static final long WAIT_FOR_ACTION_TIMEOUT_MSEC = 5000;
+    public static final long WAIT_FOR_ACTION_TIMEOUT_MSEC = 6000;
     public static final String BUNDLE_BASE_NAME = "org.apache.sling.installer.it-" + POM_VERSION;
 
     @Inject
@@ -99,11 +103,19 @@ class OsgiInstallerTestBase implements FrameworkListener {
         installer = getService(OsgiInstaller.class);
     }
 
+    @Before
+    public void setup() {
+        configAdminTracker = new ServiceTracker(bundleContext, ConfigurationAdmin.class.getName(), null);
+        configAdminTracker.open();
+    }
+
     /** Tear down everything. */
     public void tearDown() {
-        if (configAdminTracker != null) {
-            configAdminTracker.close();
-            configAdminTracker = null;
+        synchronized (this) {
+            if (configAdminTracker != null) {
+                configAdminTracker.close();
+                configAdminTracker = null;
+            }
         }
     }
 
@@ -176,7 +188,7 @@ class OsgiInstallerTestBase implements FrameworkListener {
     }
 
     protected Configuration findConfiguration(String pid) throws Exception {
-    	final ConfigurationAdmin ca = getService(ConfigurationAdmin.class);
+    	final ConfigurationAdmin ca = this.waitForConfigAdmin(true);
     	if (ca != null) {
 	    	final Configuration[] cfgs = ca.listConfigurations(null);
 	    	if (cfgs != null) {
@@ -198,7 +210,7 @@ class OsgiInstallerTestBase implements FrameworkListener {
         	if(c.isTrue()) {
         		return;
         	}
-        	Thread.sleep(c.getMsecBetweenEvaluations());
+        	sleep(c.getMsecBetweenEvaluations());
         } while(System.currentTimeMillis() < end);
 
         if(c.additionalInfo() != null) {
@@ -216,13 +228,13 @@ class OsgiInstallerTestBase implements FrameworkListener {
         	if(value.equals(c.getProperties().get(key))) {
         		return;
         	}
-        	Thread.sleep(100L);
+        	sleep(100L);
         } while(System.currentTimeMillis() < end);
         fail("Did not get " + key + "=" + value + " for config " + pid);
     }
 
     protected Configuration waitForConfiguration(String info, String pid, long timeoutMsec, boolean shouldBePresent) throws Exception {
-        if(info == null) {
+        if (info == null) {
             info = "";
         } else {
             info += ": ";
@@ -242,9 +254,9 @@ class OsgiInstallerTestBase implements FrameworkListener {
             sleep(25);
         } while(System.currentTimeMillis() < end);
 
-        if(shouldBePresent && result == null) {
+        if (shouldBePresent && result == null) {
             fail(info + "Configuration not found (" + pid + ")");
-        } else if(!shouldBePresent && result != null) {
+        } else if (!shouldBePresent && result != null) {
             fail(info + "Configuration is still present (" + pid + ")");
         }
         return result;
@@ -304,24 +316,26 @@ class OsgiInstallerTestBase implements FrameworkListener {
     }
 
     protected InstallableResource[] getInstallableResource(String configPid, Dictionary<String, Object> data) {
-        return getInstallableResource(configPid, data, InstallableResource.DEFAULT_PRIORITY);
+        return getInstallableResource(configPid, copy(data), InstallableResource.DEFAULT_PRIORITY);
     }
 
     protected InstallableResource[] getInstallableResource(String configPid, Dictionary<String, Object> data, int priority) {
-        final InstallableResource result = new MockInstallableResource("/" + configPid, data, null, null, priority);
+        final InstallableResource result = new MockInstallableResource("/" + configPid, copy(data), null, null, priority);
         return new InstallableResource[] {result};
+    }
+
+    protected Dictionary<String, Object> copy(Dictionary<String, Object> data) {
+        final Dictionary<String, Object> copy = new Hashtable<String, Object>();
+        final Enumeration<String> keys = data.keys();
+        while(keys.hasMoreElements()) {
+            final String key = keys.nextElement();
+            copy.put(key, data.get(key));
+        }
+        return copy;
     }
 
     protected ConfigurationAdmin waitForConfigAdmin(final boolean shouldBePresent) {
     	ConfigurationAdmin result = null;
-        if (configAdminTracker == null) {
-            synchronized (this) {
-                if (configAdminTracker == null) {
-                    configAdminTracker = new ServiceTracker(bundleContext, ConfigurationAdmin.class.getName(), null);
-                    configAdminTracker.open();
-                }
-            }
-        }
 
         final int timeout = 5;
     	final long waitUntil = System.currentTimeMillis() + (timeout * 1000L);
@@ -339,6 +353,11 @@ class OsgiInstallerTestBase implements FrameworkListener {
     	return result;
     }
 
+    protected Bundle getConfigAdminBundle() {
+        this.waitForConfigAdmin(true);
+        return this.configAdminTracker.getServiceReference().getBundle();
+    }
+
     /**
      * Helper method for sleeping.
      */
@@ -354,7 +373,7 @@ class OsgiInstallerTestBase implements FrameworkListener {
     	log.log(level, msg);
     }
 
-    public static Option[] defaultConfiguration() {
+    protected Option[] defaultConfiguration() {
     	String vmOpt = "-Dosgi.installer.testing";
 
     	// This runs in the VM that runs the build, but the tests run in another one.
@@ -367,26 +386,31 @@ class OsgiInstallerTestBase implements FrameworkListener {
     	}
 
     	// optional debugging
-    	final String paxDebugLevel = System.getProperty("pax.exam.log.level");
+    	final String paxDebugLevel = System.getProperty("pax.exam.log.level", "INFO");
     	final String paxDebugPort = System.getProperty("pax.exam.debug.port");
     	if(paxDebugPort != null && paxDebugPort.length() > 0) {
         	vmOpt += " -Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=" + paxDebugPort;
     	}
 
-        return options(
-                felix(),
-                vmOption(vmOpt),
-                waitForFrameworkStartup(),
+    	String localRepo = System.getProperty("maven.repo.local", "");
 
-                logProfile(),
+    	return options(
+                junitBundles(),
+                when( localRepo.length() > 0 ).useOptions(
+                        systemProperty("org.ops4j.pax.url.mvn.localRepository").value(localRepo)
+                ),
                 systemProperty( "org.ops4j.pax.logging.DefaultServiceLog.level" ).value(paxDebugLevel),
-
                 provision(
-        	            mavenBundle("org.apache.felix", "org.apache.felix.scr", "1.6.0"),
+                        mavenBundle("org.apache.sling", "org.apache.sling.commons.log", "3.0.0"),
+                        mavenBundle("org.apache.sling", "org.apache.sling.commons.logservice", "1.0.2"),
+
+                        mavenBundle("org.slf4j", "slf4j-api", "1.6.4"),
+                        mavenBundle("org.slf4j", "jcl-over-slf4j", "1.6.4"),
+                        mavenBundle("org.slf4j", "log4j-over-slf4j", "1.6.4"),
+
+        	            mavenBundle("org.apache.felix", "org.apache.felix.scr", "1.8.0"),
         	            mavenBundle("org.apache.felix", "org.apache.felix.configadmin", "1.2.8"),
                         mavenBundle("org.apache.felix", "org.apache.felix.metatype", "1.0.2"),
-        	            mavenBundle("org.apache.sling", "org.apache.sling.commons.log", "2.1.2"),
-        	        	mavenBundle("org.apache.sling", "org.apache.sling.installer.api", API_VERSION),
         	        	mavenBundle("org.apache.sling", "org.apache.sling.installer.core", POM_VERSION),
                         mavenBundle("org.apache.sling", "org.apache.sling.installer.factory.configuration", CONFIG_VERSION)
         		)
@@ -449,6 +473,17 @@ class OsgiInstallerTestBase implements FrameworkListener {
         }
     }
 
+    protected boolean isPackageExported(Bundle b, String packageName) {
+        final BundleWiring wiring = b.adapt(BundleWiring.class);
+        assertNotNull("Expecting non-null BundleWiring for bundle " + b, wiring);
+        for(BundleCapability c : wiring.getCapabilities(PackageNamespace.PACKAGE_NAMESPACE)) {
+            if(packageName.equals(c.getAttributes().get(PackageNamespace.PACKAGE_NAMESPACE))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public void logInstalledBundles() {
         for(Bundle b : bundleContext.getBundles()) {
             log(LogService.LOG_DEBUG, "Installed bundle: " + b.getSymbolicName());
@@ -500,9 +535,7 @@ class OsgiInstallerTestBase implements FrameworkListener {
                         }
                     }
                 }
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException ignore) {}
+                sleep(100);
             }
             logInstalledBundles();
             final StringBuilder sb = new StringBuilder();
@@ -530,6 +563,7 @@ class OsgiInstallerTestBase implements FrameworkListener {
                     for(BundleEvent e : this.events ) {
                         if ( symbolicName.equals(e.symbolicName) ) {
                             found = true;
+                            break;
                         }
                     }
                 }

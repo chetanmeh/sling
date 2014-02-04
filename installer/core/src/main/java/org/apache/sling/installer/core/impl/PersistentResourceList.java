@@ -37,7 +37,6 @@ import java.util.Map;
 import org.apache.sling.installer.api.InstallableResource;
 import org.apache.sling.installer.api.event.InstallationListener;
 import org.apache.sling.installer.api.tasks.RegisteredResource;
-import org.apache.sling.installer.api.tasks.TaskResource;
 import org.apache.sling.installer.api.tasks.TransformationResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -99,6 +98,8 @@ public class PersistentResourceList {
                 logger.debug("Restored unknown resource list: {}", unknownList);
             } catch (final Exception e) {
                 logger.warn("Unable to restore data, starting with empty list (" + e.getMessage() + ")", e);
+                restoredData = null;
+                unknownList = null;
             } finally {
                 if (ois != null) {
                     try {
@@ -116,8 +117,9 @@ public class PersistentResourceList {
 
         // update resource ids
         for(final Map.Entry<String, EntityResourceList> entry : this.data.entrySet()) {
-            entry.getValue().setResourceId(entry.getKey());
-            entry.getValue().setListener(listener);
+            final EntityResourceList erl = entry.getValue();
+            erl.setResourceId(entry.getKey());
+            erl.setListener(listener);
         }
 
         // check for special resources
@@ -184,7 +186,8 @@ public class PersistentResourceList {
         // first check untransformed resource if there are resources with the same url and digest
         for(final RegisteredResource rr : this.untransformedResources ) {
             if ( rr.getURL().equals(input.getURL()) && ( rr.getDigest().equals(input.getDigest())) ) {
-                // if we found the resource we can immediately return
+                // if we found the resource we can return after updating
+                ((RegisteredResourceImpl)rr).update(input);
                 return rr;
             }
         }
@@ -192,13 +195,14 @@ public class PersistentResourceList {
         for(final EntityResourceList group : this.data.values()) {
             for(final RegisteredResource rr : group.getResources()) {
                 if ( rr.getURL().equals(input.getURL()) && ( rr.getDigest().equals(input.getDigest()))) {
-                    // if we found the resource we can immediately return
+                    // if we found the resource we can return after updating
+                    ((RegisteredResourceImpl)rr).update(input);
                     return rr;
                 }
             }
         }
         try {
-            final TaskResource registeredResource = RegisteredResourceImpl.create(input);
+            final RegisteredResourceImpl registeredResource = RegisteredResourceImpl.create(input);
             this.checkInstallable(registeredResource);
             return registeredResource;
         } catch (final IOException ioe) {
@@ -211,7 +215,7 @@ public class PersistentResourceList {
      * Check if the provided installable resource is already installable (has a
      * known resource type)
      */
-    private void checkInstallable(final TaskResource input) {
+    private void checkInstallable(final RegisteredResourceImpl input) {
         if ( !InstallableResource.TYPE_FILE.equals(input.getType())
              && !InstallableResource.TYPE_PROPERTIES.equals(input.getType()) ) {
 
@@ -259,16 +263,6 @@ public class PersistentResourceList {
                 i.remove();
                 break;
             }
-        }
-    }
-
-    /**
-     * Remove a resource.
-     */
-    public void remove(final TaskResource r) {
-        final EntityResourceList group = this.data.get(r.getEntityId());
-        if ( group != null ) {
-            group.remove(r);
         }
     }
 
@@ -326,7 +320,7 @@ public class PersistentResourceList {
                             resource, tr.getResourceType());
                     continue;
                 }
-                final TaskResource clone =  ((RegisteredResourceImpl)resource).clone(result[i]);
+                final RegisteredResourceImpl clone =  (RegisteredResourceImpl)((RegisteredResourceImpl)resource).clone(result[i]);
                 this.checkInstallable(clone);
             }
         } catch (final IOException ioe) {

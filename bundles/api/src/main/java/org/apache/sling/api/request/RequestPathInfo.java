@@ -16,6 +16,10 @@
  */
 package org.apache.sling.api.request;
 
+import org.apache.sling.api.resource.Resource;
+
+import aQute.bnd.annotation.ProviderType;
+
 /**
  * Sling breaks the request URI into four parts: the path itself, optional
  * dot-separated selectors and extension that follow it, and an optional path
@@ -143,6 +147,7 @@ package org.apache.sling.api.request;
  * </tr>
  * </table>
  */
+@ProviderType
 public interface RequestPathInfo {
 
     /**
@@ -201,4 +206,16 @@ public interface RequestPathInfo {
      */
     String getSuffix();
 
+    /**
+     * Returns the resource addressed by the suffix or null if the request does
+     * not have a suffix or the suffix does not address an accessible resource.
+     * <p>
+     * The suffix is expected to be the absolute path to the resource suitable
+     * as an argument to the
+     * {@link org.apache.sling.api.resource.ResourceResolver#getResource(String)}
+     * method.
+     *
+     * @since 2.3 (Sling API 2.3.2)
+     */
+    Resource getSuffixResource();
 }

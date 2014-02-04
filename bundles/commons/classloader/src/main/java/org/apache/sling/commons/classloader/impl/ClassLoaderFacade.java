@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
 
+import org.apache.sling.commons.classloader.DynamicClassLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,13 +37,21 @@ import org.slf4j.LoggerFactory;
  * This class loader delegates to other class loaders
  * but caches its result for performance.
  */
-public class ClassLoaderFacade extends ClassLoader {
+public class ClassLoaderFacade extends ClassLoader implements DynamicClassLoader {
 
     /** The logger. */
     private final Logger logger = LoggerFactory.getLogger(this.getClass().getName());
 
     /** Dynamic class loader manager which manages the dynamic class loader providers for this facade. */
     private final DynamicClassLoaderManagerImpl manager;
+
+    /** Used to log stack traces in slf4j for non-critical errors */
+    @SuppressWarnings("serial")
+    static class StackTraceProbe extends Exception {
+        StackTraceProbe(String reason) {
+            super(reason);
+        }
+    }
 
     /**
      * Constructor
@@ -51,12 +60,25 @@ public class ClassLoaderFacade extends ClassLoader {
         this.manager = manager;
     }
 
+    /** Return false if our manager is not active, and log the stack trace
+     *  when that happens, to ease troubleshooting.
+     */
+    private boolean checkManagerActive() {
+        if(!this.manager.isActive()) {
+            final String msg = "Dynamic class loader has already been deactivated.";
+            final StackTraceProbe p = new StackTraceProbe(msg);
+            logger.error(msg, p);
+            return false;
+        }
+        return true;
+    }
+
     /**
      * @see java.lang.ClassLoader#getResource(java.lang.String)
      */
+    @Override
     public URL getResource(String name) {
-        if ( !this.manager.isActive() ) {
-            logger.error("Dynamic class loader has already been deactivated.");
+        if (!checkManagerActive()) {
             return null;
         }
         final ClassLoader[] loaders = manager.getDynamicClassLoaders();
@@ -80,9 +102,9 @@ public class ClassLoaderFacade extends ClassLoader {
     /**
      * @see java.lang.ClassLoader#getResources(java.lang.String)
      */
+    @Override
     public Enumeration<URL> getResources(String name) throws IOException {
-        if ( !this.manager.isActive() ) {
-            logger.error("Dynamic class loader has already been deactivated.");
+        if(!checkManagerActive()) {
             return Collections.enumeration(EMPTY_LIST);
         }
         final ClassLoader[] loaders = manager.getDynamicClassLoaders();
@@ -105,10 +127,10 @@ public class ClassLoaderFacade extends ClassLoader {
     /**
      * @see java.lang.ClassLoader#loadClass(java.lang.String, boolean)
      */
+    @Override
     protected synchronized Class<?> loadClass(String name, boolean resolve)
     throws ClassNotFoundException {
-        if ( !this.manager.isActive() ) {
-            logger.error("Dynamic class loader has already been deactivated.");
+        if(!checkManagerActive()) {
             throw new ClassNotFoundException(name);
         }
         final ClassLoader[] loaders = manager.getDynamicClassLoaders();
@@ -125,5 +147,12 @@ public class ClassLoaderFacade extends ClassLoader {
             }
         }
         throw new ClassNotFoundException(name);
+    }
+
+    /**
+     * @see org.apache.sling.commons.classloader.DynamicClassLoader#isLive()
+     */
+    public boolean isLive() {
+        return this.manager.isActive();
     }
 }

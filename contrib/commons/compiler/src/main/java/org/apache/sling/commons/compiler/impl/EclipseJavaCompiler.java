@@ -33,6 +33,7 @@ import org.apache.felix.scr.annotations.Service;
 import org.apache.sling.commons.classloader.ClassLoaderWriter;
 import org.apache.sling.commons.compiler.CompilationResult;
 import org.apache.sling.commons.compiler.CompilationUnit;
+import org.apache.sling.commons.compiler.CompilationUnitWithSource;
 import org.apache.sling.commons.compiler.JavaCompiler;
 import org.apache.sling.commons.compiler.Options;
 import org.eclipse.jdt.core.compiler.CategorizedProblem;
@@ -82,17 +83,24 @@ public class EclipseJavaCompiler implements JavaCompiler {
         } else if ( options.get(Options.KEY_ADDITIONAL_CLASS_LOADER) != null ) {
             final ClassLoader additionalClassLoader = (ClassLoader)options.get(Options.KEY_ADDITIONAL_CLASS_LOADER);
             loader = new ClassLoader(classLoaderWriter.getClassLoader()) {
+                @Override
                 protected Class<?> findClass(String name)
                 throws ClassNotFoundException {
                     return additionalClassLoader.loadClass(name);
                 }
 
+                @Override
                 protected URL findResource(String name) {
                     return additionalClassLoader.getResource(name);
                 }
             };
         } else {
-            loader = classLoaderWriter.getClassLoader();
+            final ClassLoader cl = classLoaderWriter.getClassLoader();
+            if ( cl == null ) {
+                loader = this.classLoaderWriter.getClassLoader();
+            } else {
+                loader = cl;
+            }
         }
         return loader;
     }
@@ -453,7 +461,11 @@ public class EclipseJavaCompiler implements JavaCompiler {
          * @see org.eclipse.jdt.internal.compiler.env.IDependent#getFileName()
          */
         public char[] getFileName() {
-            return (this.packageName.replace('.', '/') + '/' + this.mainTypeName + ".java").toCharArray();
+            if (compUnit instanceof CompilationUnitWithSource) {
+                return ((CompilationUnitWithSource)compUnit).getFileName().toCharArray();
+            } else {
+                return (this.packageName.replace('.', '/') + '/' + this.mainTypeName + ".java").toCharArray();
+            }
         }
     }
 }

@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import javax.servlet.http.HttpServletResponse;
 
@@ -41,11 +42,15 @@ import org.apache.commons.httpclient.auth.AuthScope;
 import org.apache.commons.httpclient.methods.GetMethod;
 import org.apache.commons.httpclient.methods.PostMethod;
 import org.apache.sling.commons.testing.util.JavascriptEngine;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
 /** Base class for HTTP-based Sling Launchpad integration tests */
 public class HttpTestBase extends TestCase {
 
+    private final Logger log = LoggerFactory.getLogger(getClass());
+    
     /** If this system property is set, the startup check is skipped. */
     public static final String PROPERTY_SKIP_STARTUP_CHECK = "launchpad.skip.startupcheck";
 
@@ -53,9 +58,15 @@ public class HttpTestBase extends TestCase {
     public static final String HTTP_BASE_URL = removePath(HTTP_URL);
     public static final String WEBDAV_BASE_URL = removeEndingSlash(System.getProperty("launchpad.webdav.server.url", HTTP_BASE_URL));
     public static final String SERVLET_CONTEXT = removeEndingSlash(System.getProperty("launchpad.servlet.context", getPath(HTTP_URL)));
+    
+    public static final String READY_URL_PROP_PREFIX = "launchpad.ready.";
+    public static final int MAX_READY_URL_INDEX = 50;
 
     /** base path for test files */
     public static final String TEST_PATH = "/launchpad-integration-tests";
+    
+    public static final String HTTP_METHOD_GET = "GET";
+    public static final String HTTP_METHOD_POST = "POST";
 
     public static final String CONTENT_TYPE_HTML = "text/html";
     public static final String CONTENT_TYPE_XML = "application/xml";
@@ -82,6 +93,8 @@ public class HttpTestBase extends TestCase {
     /** Means "don't care about Content-Type" in getContent(...) methods */
     public static final String CONTENT_TYPE_DONTCARE = "*";
 
+    private static final Object startupCheckLock = new Object();
+
     /** URLs stored here are deleted in tearDown */
     protected final List<String> urlsToDelete = new LinkedList<String>();
 
@@ -92,30 +105,13 @@ public class HttpTestBase extends TestCase {
      *  stores useful values for testing. Created for JspScriptingTest,
      *  older test classes do not use it, but it might simplify them.
      */
-    protected class TestNode {
-        public final String testText;
-        public final String nodeUrl;
-        public final String resourceType;
-        public final String scriptPath;
-
+    protected class TestNode extends HttpTestNode {
         public TestNode(String parentPath, Map<String, String> properties) throws IOException {
-            if(properties == null) {
-                properties = new HashMap<String, String>();
-            }
-            testText = "This is a test node " + System.currentTimeMillis();
-            properties.put("text", testText);
-            nodeUrl = testClient.createNode(parentPath + SLING_POST_SERVLET_CREATE_SUFFIX, properties);
-            resourceType = properties.get(SLING_RESOURCE_TYPE);
-            scriptPath = "/apps/" + (resourceType == null ? "nt/unstructured" : resourceType);
-            testClient.mkdirs(WEBDAV_BASE_URL, scriptPath);
-        }
-
-        public void delete() throws IOException {
-            testClient.delete(nodeUrl);
+            super(testClient, parentPath, properties);
         }
     };
 
-    protected static String removeEndingSlash(String str) {
+    public static String removeEndingSlash(String str) {
         if(str != null && str.endsWith("/")) {
             return str.substring(0, str.length() - 1);
         }
@@ -170,7 +166,7 @@ public class HttpTestBase extends TestCase {
     /**
      * Generate default credentials used for HTTP requests.
      */
-    protected Credentials getDefaultCredentials() {
+    public Credentials getDefaultCredentials() {
         return new UsernamePasswordCredentials("admin", "admin");
     }
 
@@ -194,17 +190,21 @@ public class HttpTestBase extends TestCase {
      */
     protected void waitForSlingStartup() throws Exception {
         // Use a static flag to make sure this runs only once in our test suite
-        if (slingStartupOk != null) {
-            if(slingStartupOk) {
+        // we must synchronize on this if we don't 2 threads could enter the check concurrently
+        // which would leave to random results.
+        synchronized(startupCheckLock) {
+            if (slingStartupOk != null) {
+                if(slingStartupOk) {
+                    return;
+                }
+                fail("Sling services not available. Already checked in earlier tests.");
+            }
+            if ( System.getProperty(PROPERTY_SKIP_STARTUP_CHECK) != null ) {
+                slingStartupOk = true;
                 return;
             }
-            fail("Sling services not available. Already checked in earlier tests.");
+            slingStartupOk = false;
         }
-        if ( System.getProperty(PROPERTY_SKIP_STARTUP_CHECK) != null ) {
-            slingStartupOk = true;
-            return;
-        }
-        slingStartupOk = false;
 
         System.err.println("Checking if the required Sling services are started (timeout " + READY_TIMEOUT_SECONDS + " seconds)...");
         System.err.println("(base URLs=" + HTTP_BASE_URL + " and " + WEBDAV_BASE_URL + "; servlet context="+ SERVLET_CONTEXT +")");
@@ -213,17 +213,39 @@ public class HttpTestBase extends TestCase {
         final List<String> exceptionMessages = new LinkedList<String>();
         final long maxMsecToWait = READY_TIMEOUT_SECONDS * 1000L;
         final long startupTime = System.currentTimeMillis();
-
+        String lastException = "";
+        int nTimesOk = 0;
+        
+        // Wait until slingServerReady returns true this many times,
+        // as in some cases more initializations might take place after
+        // this returns true
+        final int MIN_TIMES_OK = 4;
+        
         while(!slingStartupOk && (System.currentTimeMillis() < startupTime + maxMsecToWait) ) {
             try {
-                slingStartupOk = slingServerReady();
+                if(slingServerReady()) {
+                    nTimesOk++;
+                    if(nTimesOk >= MIN_TIMES_OK) {
+                        slingStartupOk = true;
+                        break;
+                    }
+                } else {
+                    nTimesOk = 0;
+                }
             } catch(Exception e) {
-                exceptionMessages.add(e.toString());
-                Thread.sleep(500L);
+                nTimesOk = 0;
+                final String newX = e.toString();
+                if(!lastException.equals(newX)) {
+                    exceptionMessages.add(newX);
+                }
+                lastException = newX;
             }
+            Thread.sleep(500L);
         }
 
-        if(!slingStartupOk) {
+        if(slingStartupOk) {
+            log.info("Sling server found ready after {} msec", System.currentTimeMillis() - startupTime);
+        } else {
             StringBuffer msg = new StringBuffer("Server does not seem to be ready, after ");
             msg.append(maxMsecToWait).append(" msec, got the following ").append(exceptionMessages.size()).append(" Exceptions:");
             for (String e: exceptionMessages) {
@@ -247,8 +269,9 @@ public class HttpTestBase extends TestCase {
         props.put("time", time);
 
         // POST, get URL of created node and get content
-        {
-            final String urlOfNewNode = testClient.createNode(url, props, null, true);
+        String urlOfNewNode = null; 
+        try {
+            urlOfNewNode = testClient.createNode(url, props, null, true);
             final GetMethod get = new GetMethod(urlOfNewNode + DEFAULT_EXT);
             final int status = httpClient.executeMethod(get);
             if(status!=200) {
@@ -264,6 +287,13 @@ public class HttpTestBase extends TestCase {
             final String content = get.getResponseBodyAsString();
             if(!content.contains(time)) {
                 throw new IOException("Content does not contain '" + time + "' (" + content + ") at URL=" + urlOfNewNode);
+            }
+        } finally {
+            if(urlOfNewNode != null) {
+                try {
+                    testClient.delete(urlOfNewNode);
+                } catch(Exception ignore) {
+                }
             }
         }
 
@@ -287,7 +317,31 @@ public class HttpTestBase extends TestCase {
                 throw new IOException("Allow header (" + h.getValue() + " does not contain PROPFIND, at URL=" + webDavUrl);
             }
         }
-
+        
+        // And check optional additional URLs for readyness
+        // Defined by system properties like
+        //  launchpad.ready.1 = GET:/tmp/someUrl:200:expectedRegexpInResponse
+        {
+            for(int i=0; i <= MAX_READY_URL_INDEX ; i++) {
+                final String propName = READY_URL_PROP_PREFIX + i;
+                final String readyDef = System.getProperty(propName, "");
+                final String [] parts = readyDef.split(":");
+                if(parts.length == 4) {
+                    final String info = propName + "=" + readyDef;
+                    final HttpAnyMethod m = new HttpAnyMethod(parts[0],HTTP_BASE_URL + parts[1]);
+                    final int expectedStatus = Integer.valueOf(parts[2]);
+                    final int status = httpClient.executeMethod(m);
+                    if(expectedStatus != status) {
+                        throw new IOException("Status " + status + " does not match expected value: " + info); 
+                    }
+                    final String content = m.getResponseBodyAsString();
+                    final Pattern p = Pattern.compile("(?s).*" + parts[3] + ".*");
+                    if(!p.matcher(content).matches()) {
+                        throw new IOException("Content does not match expected regexp:" + info  + ", content=" + content);
+                    }
+                }
+            }
+        }
 
         return true;
     }
@@ -295,7 +349,7 @@ public class HttpTestBase extends TestCase {
     /** Verify that given URL returns expectedStatusCode
      * @return the HttpMethod executed
      * @throws IOException */
-    protected HttpMethod assertHttpStatus(String urlString, int expectedStatusCode, String assertMessage) throws IOException {
+    public HttpMethod assertHttpStatus(String urlString, int expectedStatusCode, String assertMessage) throws IOException {
         final GetMethod get = new GetMethod(urlString);
         final int status = httpClient.executeMethod(get);
         if(assertMessage == null) {
@@ -309,14 +363,14 @@ public class HttpTestBase extends TestCase {
     /** Verify that given URL returns expectedStatusCode
      * @return the HttpMethod executed
      * @throws IOException */
-    protected HttpMethod assertHttpStatus(String urlString, int expectedStatusCode) throws IOException {
+    public HttpMethod assertHttpStatus(String urlString, int expectedStatusCode) throws IOException {
         return assertHttpStatus(urlString, expectedStatusCode, null);
     }
 
     /** Execute a POST request and check status
      * @return the HttpMethod executed
      * @throws IOException */
-    protected HttpMethod assertPostStatus(String url, int expectedStatusCode, List<NameValuePair> postParams, String assertMessage)
+    public HttpMethod assertPostStatus(String url, int expectedStatusCode, List<NameValuePair> postParams, String assertMessage)
     throws IOException {
         final PostMethod post = new PostMethod(url);
         post.setFollowRedirects(false);
@@ -335,30 +389,49 @@ public class HttpTestBase extends TestCase {
         return post;
     }
 
-    /** retrieve the contents of given URL and assert its content type */
-    protected String getContent(String url, String expectedContentType) throws IOException {
+    /** retrieve the contents of given URL and assert its content type (default to HTTP GET method)*/
+    public String getContent(String url, String expectedContentType) throws IOException {
         return getContent(url, expectedContentType, null);
     }
 
-    protected String getContent(String url, String expectedContentType, List<NameValuePair> params) throws IOException {
+    /** retrieve the contents of given URL and assert its content type (default to HTTP GET method)*/
+    public String getContent(String url, String expectedContentType, List<NameValuePair> params) throws IOException {
         return getContent(url, expectedContentType, params, HttpServletResponse.SC_OK);
     }
 
-    /** retrieve the contents of given URL and assert its content type
+    /** retrieve the contents of given URL and assert its content type (default to HTTP GET method)
      * @param expectedContentType use CONTENT_TYPE_DONTCARE if must not be checked
      * @throws IOException
      * @throws HttpException */
-    protected String getContent(String url, String expectedContentType, List<NameValuePair> params, int expectedStatusCode) throws IOException {
-        final GetMethod get = new GetMethod(url);
-        if(params != null) {
+    public String getContent(String url, String expectedContentType, List<NameValuePair> params, int expectedStatusCode) throws IOException {
+    	return getContent(url, expectedContentType, params, expectedStatusCode, HTTP_METHOD_GET);
+    }
+    
+    /** retrieve the contents of given URL and assert its content type
+     * @param expectedContentType use CONTENT_TYPE_DONTCARE if must not be checked
+     * @param httMethod supports just GET and POST methods
+     * @throws IOException
+     * @throws HttpException */
+    public String getContent(String url, String expectedContentType, List<NameValuePair> params, int expectedStatusCode, String httpMethod) throws IOException {
+    	HttpMethodBase method = null;
+    	
+    	if (HTTP_METHOD_GET.equals(httpMethod)){
+    		method= new GetMethod(url);
+    	}else if (HTTP_METHOD_POST.equals(httpMethod)){
+    		method = new PostMethod(url);
+    	}  else{
+    		fail("Http Method not supported in this test suite, method: "+httpMethod);
+    	}
+    	
+    	if(params != null) {
             final NameValuePair [] nvp = new NameValuePair[0];
-            get.setQueryString(params.toArray(nvp));
+            method.setQueryString(params.toArray(nvp));
         }
-        final int status = httpClient.executeMethod(get);
-        final String content = getResponseBodyAsStream(get, 0);
+        final int status = httpClient.executeMethod(method);
+        final String content = getResponseBodyAsStream(method, 0);
         assertEquals("Expected status " + expectedStatusCode + " for " + url + " (content=" + content + ")",
                 expectedStatusCode,status);
-        final Header h = get.getResponseHeader("Content-Type");
+        final Header h = method.getResponseHeader("Content-Type");
         if(expectedContentType == null) {
             if(h!=null) {
                 fail("Expected null Content-Type, got " + h.getValue());
@@ -378,10 +451,12 @@ public class HttpTestBase extends TestCase {
             );
         }
         return content.toString();
+    	
     }
+    
 
     /** upload rendering test script, and return its URL for future deletion */
-    protected String uploadTestScript(String scriptPath, String localFilename,String filenameOnServer) throws IOException {
+    public String uploadTestScript(String scriptPath, String localFilename,String filenameOnServer) throws IOException {
         final String url = WEBDAV_BASE_URL + scriptPath + "/" + filenameOnServer;
         final String testFile = "/integration-test/" + localFilename;
         final InputStream data = getClass().getResourceAsStream(testFile);
@@ -399,12 +474,12 @@ public class HttpTestBase extends TestCase {
     }
 
     /** Upload script, execute with no parameters and return content */
-    protected String executeScript(String localFilename) throws Exception {
+    public String executeScript(String localFilename) throws Exception {
         return executeScript(localFilename, null);
     }
 
     /** Upload script, execute with given parameters (optional) and return content */
-    protected String executeScript(String localFilename, List<NameValuePair> params) throws Exception {
+    public String executeScript(String localFilename, List<NameValuePair> params) throws Exception {
 
         // Use unique resource type
         int counter = 0;
@@ -436,12 +511,12 @@ public class HttpTestBase extends TestCase {
         }
     }
 
-    protected void assertJavascript(String expectedOutput, String jsonData, String code) throws IOException {
+    public void assertJavascript(String expectedOutput, String jsonData, String code) throws IOException {
         assertJavascript(expectedOutput, jsonData, code, null);
     }
 
     /** Evaluate given code using given jsonData as the "data" object */
-    protected void assertJavascript(String expectedOutput, String jsonData, String code, String testInfo) throws IOException {
+    public void assertJavascript(String expectedOutput, String jsonData, String code, String testInfo) throws IOException {
     	final String result = javascriptEngine.execute(code, jsonData);
         if(!result.equals(expectedOutput)) {
             fail(

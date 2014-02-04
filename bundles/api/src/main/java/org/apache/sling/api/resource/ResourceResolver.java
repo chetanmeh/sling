@@ -25,6 +25,8 @@ import javax.servlet.http.HttpServletRequest;
 
 import org.apache.sling.api.adapter.Adaptable;
 
+import aQute.bnd.annotation.ProviderType;
+
 /**
  * The <code>ResourceResolver</code> defines the service API which may be used
  * to resolve {@link Resource} objects. The resource resolver is available to
@@ -49,7 +51,7 @@ import org.apache.sling.api.adapter.Adaptable;
  * This interface defines two kinds of methods to access resources: The
  * <code>resolve</code> methods and the <code>getResource</code> methods. The
  * difference lies in the algorithm applied to find the requested resource and
- * in the behaviour in case a resource cannot be found:
+ * in the behavior in case a resource cannot be found:
  * <table>
  * <tr>
  * <th>Method Kind</th>
@@ -94,6 +96,7 @@ import org.apache.sling.api.adapter.Adaptable;
  * sensitive properties like {@link ResourceResolverFactory#PASSWORD} which is
  * not exposed.
  */
+@ProviderType
 public interface ResourceResolver extends Adaptable {
 
     /**
@@ -121,6 +124,17 @@ public interface ResourceResolver extends Adaptable {
     String USER_IMPERSONATOR = "user.impersonator";
 
     /**
+     * This is the suggested property to be used for setting the resource type
+     * of a resource during either creation ({@link #create(Resource, String, Map)})
+     * or modifying ({@link ModifiableValueMap}).
+     * However the exact way to set the resource type of a resource is defined
+     * by the underlying resource provider. It should value this property but
+     * is not required to do so.
+     * @since 2.3
+     */
+    String PROPERTY_RESOURCE_TYPE = "sling:resourceType";
+
+    /**
      * Resolves the resource from the given <code>absPath</code> optionally
      * taking <code>HttpServletRequest</code> into account, such as the value of
      * the <code>Host</code> request header. Returns a
@@ -144,7 +158,7 @@ public interface ResourceResolver extends Adaptable {
      * @return The {@link Resource} addressed by the <code>absPath</code> or a
      *         {@link NonExistingResource} if no such resource can be resolved.
      * @throws org.apache.sling.api.SlingException Or a subclass thereof may be
-     *             thrown if an error occurrs trying to resolve the resource.
+     *             thrown if an error occurs trying to resolve the resource.
      * @throws IllegalStateException if this resource resolver has already been
      *             {@link #close() closed}.
      * @since 2.0.4
@@ -173,7 +187,7 @@ public interface ResourceResolver extends Adaptable {
      * @return The {@link Resource} addressed by the <code>absPath</code> or a
      *         {@link NonExistingResource} if no such resource can be resolved.
      * @throws org.apache.sling.api.SlingException Or a subclass thereof may be
-     *             thrown if an error occurrs trying to resolve the resource.
+     *             thrown if an error occurs trying to resolve the resource.
      * @throws IllegalStateException if this resource resolver has already been
      *             {@link #close() closed}.
      */
@@ -198,7 +212,7 @@ public interface ResourceResolver extends Adaptable {
      * @throws NullPointerException If <code>request</code> is <code>null</code>
      *             .
      * @throws org.apache.sling.api.SlingException Or a subclass thereof may be
-     *             thrown if an error occurrs trying to resolve the resource.
+     *             thrown if an error occurs trying to resolve the resource.
      * @throws IllegalStateException if this resource resolver has already been
      *             {@link #close() closed}.
      * @deprecated as of 2.0.4, use {@link #resolve(HttpServletRequest, String)}
@@ -279,7 +293,7 @@ public interface ResourceResolver extends Adaptable {
      *            relative path to a resource.
      * @return The <code>Resource</code> object loaded from the path or
      *         <code>null</code> if the path does not resolve to a resource.
-     * @throws org.apache.sling.api.SlingException If an error occurrs trying to
+     * @throws org.apache.sling.api.SlingException If an error occurs trying to
      *             load the resource object from the path.
      * @throws IllegalStateException if this resource resolver has already been
      *             {@link #close() closed}.
@@ -307,7 +321,7 @@ public interface ResourceResolver extends Adaptable {
      *            (parent location), which are resolved by this method.
      * @return The <code>Resource</code> object loaded from the path or
      *         <code>null</code> if the path does not resolve to a resource.
-     * @throws org.apache.sling.api.SlingException If an error occurrs trying to
+     * @throws org.apache.sling.api.SlingException If an error occurs trying to
      *             load the resource object from the path or if
      *             <code>base</code> is <code>null</code> and <code>path</code>
      *             is relative.
@@ -356,12 +370,33 @@ public interface ResourceResolver extends Adaptable {
     Iterator<Resource> listChildren(Resource parent);
 
     /**
+     * Returns an <code>Iterable</code> of {@link Resource} objects loaded from
+     * the children of the given <code>Resource</code>.
+     * <p>
+     * This specification does not define what the term "child" means. This is
+     * left to the implementation to define. For example an implementation
+     * reading content from a Java Content Repository, the children could be the
+     * {@link Resource} objects loaded from child items of the <code>Item</code>
+     * of the given <code>Resource</code>.
+     *
+     * @param parent The {@link Resource Resource} whose children are requested.
+     * @return An <code>Iterable</code> of {@link Resource} objects.
+     * @throws NullPointerException If <code>parent</code> is <code>null</code>.
+     * @throws org.apache.sling.api.SlingException If any error occurs acquiring
+     *             the child resource iterator.
+     * @throws IllegalStateException if this resource resolver has already been
+     *             {@link #close() closed}.
+     * @since 2.2
+     */
+    Iterable<Resource> getChildren(Resource parent);
+
+    /**
      * Searches for resources using the given query formulated in the given
      * language.
      * <p>
      * The semantic meaning of the query and language depend on the actual
      * implementation and storage used for the resources. For JCR repository
-     * being used as storage, the query and lanuage parameters are used to
+     * being used as storage, the query and language parameters are used to
      * create a JCR <code>Query</code> through the <code>QueryManager</code>.
      * The result returned is then based on the <code>NodeIterator</code>
      * provided by the query result.
@@ -375,7 +410,7 @@ public interface ResourceResolver extends Adaptable {
      *         query.
      * @throws QuerySyntaxException If the query is not syntactically correct
      *             according to the query language indicator.
-     * @throws org.apache.sling.api.SlingException If an error occurrs querying
+     * @throws org.apache.sling.api.SlingException If an error occurs querying
      *             for the resources.
      * @throws IllegalStateException if this resource resolver has already been
      *             {@link #close() closed}.
@@ -388,7 +423,7 @@ public interface ResourceResolver extends Adaptable {
      * <p>
      * The semantic meaning of the query and language depend on the actual
      * implementation and storage used for the resources. For JCR repository
-     * being used as storage, the query and lanuage parameters are used to
+     * being used as storage, the query and language parameters are used to
      * create a JCR <code>Query</code> through the <code>QueryManager</code>.
      * The result returned is then based on the <code>RowIterator</code>
      * provided by the query result. The map returned for each row is indexed by
@@ -405,13 +440,23 @@ public interface ResourceResolver extends Adaptable {
      *         access to the query result.
      * @throws QuerySyntaxException If the query is not syntactically correct
      *             according to the query language indicator.
-     * @throws org.apache.sling.api.SlingException If an error occurrs querying
+     * @throws org.apache.sling.api.SlingException If an error occurs querying
      *             for the resources.
      * @throws IllegalStateException if this resource resolver has already been
      *             {@link #close() closed}.
      */
     Iterator<Map<String, Object>> queryResources(String query, String language);
 
+    /**
+     * Checks if the specified resource has any direct child resources.
+     * 
+     * @param resource
+     *            the resource to check for direct children
+     * @return <code>true</code> if the resource has any child resources
+     * @since 2.4.4
+     */
+    boolean hasChildren(Resource resource);
+    
     /**
      * Returns a new <code>ResourceResolver</code> instance based on the given
      * <code>authenticationInfo</code> map and the original authentication info
@@ -428,12 +473,12 @@ public interface ResourceResolver extends Adaptable {
      * </pre>
      *
      * @param authenticationInfo The map or credential data to overlay the
-     *            orignal credential data with for the creation of a new
+     *            original credential data with for the creation of a new
      *            resource resolver. This may be <code>null</code> in which case
      *            the same credential data is used as was used to create this
      *            instance.
      * @return A new <code>ResourceResolver</code>
-     * @throws LoginException If an error occurrs creating the new
+     * @throws LoginException If an error occurs creating the new
      *             <code>ResourceResolver</code> with the provided credential
      *             data.
      * @throws IllegalStateException if this resource resolver has already been
@@ -462,7 +507,8 @@ public interface ResourceResolver extends Adaptable {
      * Close this resource resolver. This method should be called by clients
      * when the resource resolver is not used anymore. Once this method has been
      * called, the resource resolver is considered unusable and will throw
-     * exceptions if still used.
+     * exceptions if still used - with the exception of this method, which
+     * can be called several times with no ill effects.
      *
      * @since 2.1
      */
@@ -508,12 +554,16 @@ public interface ResourceResolver extends Adaptable {
 
     /**
      * Delete the resource
+     *
+     * Deleting a non existing resource leads to no operation nor exception.
+     *
      * @param resource The resource to delete
      *
      * @throws NullPointerException if the resource parameter is null
      * @throws UnsupportedOperationException If the resource provider does not allow to
      *                                       delete this resource.
      * @throws PersistenceException If the operation fails.
+     * @since 2.2
      */
     void delete(Resource resource)
     throws PersistenceException;
@@ -530,12 +580,14 @@ public interface ResourceResolver extends Adaptable {
      * @throws UnsupportedOperationException If the resource provider does not allow to
      *                                       create a resource at that location.
      * @throws PersistenceException If the operation fails.
+     * @since 2.2
      */
     Resource create(Resource parent, String name, Map<String, Object> properties)
     throws PersistenceException;
 
     /**
      * Revert all pending changes.
+     * @since 2.2
      */
     void revert();
 
@@ -543,11 +595,65 @@ public interface ResourceResolver extends Adaptable {
      * Persist all pending changes.
      *
      * @throws PersistenceException
+     * @since 2.2
      */
     void commit() throws PersistenceException;
 
     /**
      * Are there any pending changes?
+     * @since 2.2
      */
     boolean hasChanges();
+
+    /**
+     * Returns the super type of the given resource. This method checks first if
+     * the resource itself knows its super type by calling
+     * {@link Resource#getResourceSuperType()}. If that returns
+     * <code>null</code> {@link #getParentResourceType(String)}
+     * is invoked with the resource type of the resource.
+     *
+     * @param resource The resource to return the resource super type for.
+     * @return The resource super type or <code>null</code>. This
+     *         method also returns <code>null</code> if the
+     *         provided resource is <code>null</code>
+     * @since 2.3
+     */
+    String getParentResourceType(final Resource resource);
+
+    /**
+     * Returns the super type of the given resource type. This method converts
+     * the resource type to a resource path and checks the corresponding resource.
+     * If the resource exists, the {@link Resource#getResourceSuperType()} method
+     * is called.
+     *
+     * @param resourceType The resource type whose super type is to be returned.
+     * @return the super type of the <code>resourceType</code> or
+     *         <code>null</code> if the resource type does not exist or returns
+     *         <code>null</code> for its super type. It also returns
+     *         <code>null</code> if <code>resourceType> is null.
+     * @since 2.3
+     */
+    public String getParentResourceType(final String resourceType);
+
+    /**
+     * Returns <code>true</code> if the resource type or any of the resource's
+     * super type(s) equals the given resource type.
+     *
+     * @param resource The resource to check
+     * @param resourceType The resource type to check this resource against.
+     * @return <code>true</code> if the resource type or any of the resource's
+     *         super type(s) equals the given resource type. <code>false</code>
+     *         is also returned if <code>resource</code> or<code>resourceType</code>
+     *         are <code>null</code>.
+     * @since 2.3
+     */
+    boolean isResourceType(final Resource resource, final String resourceType);
+
+    /**
+     * The resolver is updated to reflect the latest state.
+     * Resources which have changes pending are not discarded.
+     * @since 2.3
+     */
+    void refresh();
+
 }

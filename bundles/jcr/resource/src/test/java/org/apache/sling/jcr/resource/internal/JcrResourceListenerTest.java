@@ -21,25 +21,20 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
 import javax.jcr.Node;
-import javax.jcr.PathNotFoundException;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
-import javax.servlet.http.HttpServletRequest;
 
 import org.apache.sling.api.SlingConstants;
-import org.apache.sling.api.resource.LoginException;
-import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.commons.testing.jcr.EventHelper;
 import org.apache.sling.commons.testing.jcr.RepositoryTestBase;
 import org.apache.sling.commons.testing.jcr.RepositoryUtil;
-import org.apache.sling.jcr.resource.internal.helper.jcr.JcrNodeResource;
+import org.apache.sling.jcr.resource.internal.helper.jcr.JcrTestNodeResource;
+import org.mockito.Mockito;
 import org.osgi.framework.BundleContext;
 import org.osgi.service.event.Event;
 import org.osgi.service.event.EventAdmin;
@@ -119,188 +114,69 @@ public class JcrResourceListenerTest extends RepositoryTestBase {
     private List<Event> generateEvents(String workspaceName) throws Exception {
         final Session session = getRepository().loginAdministrative(workspaceName);
 
-        final List<Event> events = new ArrayList<Event>();
+        try {
+            final List<Event> events = new ArrayList<Event>();
 
-        addNodeToModify(session);
-        addNodeToDelete(session);
+            addNodeToModify(session);
+            addNodeToDelete(session);
 
-        final ResourceResolver resolver = new ResourceResolver() {
+            final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
+            Mockito.when(resolver.adaptTo(Mockito.any(Class.class))).thenReturn(session);
+            Mockito.when(resolver.getResource(Mockito.anyString())).thenReturn(new JcrTestNodeResource(resolver, session.getNode("/"), null));
 
-            public <AdapterType> AdapterType adaptTo(Class<AdapterType> type) {
-                return (AdapterType)session;
-            }
+            final ResourceResolverFactory factory = Mockito.mock(ResourceResolverFactory.class);
+            Mockito.when(factory.getAdministrativeResourceResolver(Mockito.anyMap())).thenReturn(resolver);
 
-            public Resource resolve(HttpServletRequest request, String absPath) {
-                // TODO Auto-generated method stub
-                return null;
-            }
+            final EventAdmin mockEA = new EventAdmin() {
 
-            public Resource resolve(String absPath) {
-                // TODO Auto-generated method stub
-                return null;
-            }
-
-            public Resource resolve(HttpServletRequest request) {
-                // TODO Auto-generated method stub
-                return null;
-            }
-
-            public String map(String resourcePath) {
-                // TODO Auto-generated method stub
-                return null;
-            }
-
-            public String map(HttpServletRequest request, String resourcePath) {
-                // TODO Auto-generated method stub
-                return null;
-            }
-
-            public Resource getResource(String path) {
-                // TODO Auto-generated method stub
-                try {
-                    return new JcrNodeResource(this, session.getNode(path), null);
-                } catch (PathNotFoundException e) {
-                    // TODO Auto-generated catch block
-                    e.printStackTrace();
-                } catch (RepositoryException e) {
-                    // TODO Auto-generated catch block
-                    e.printStackTrace();
+                public void postEvent(Event event) {
+                    events.add(event);
                 }
-                return null;
+
+                public void sendEvent(Event event) {
+                    events.add(event);
+                }
+            };
+
+            final ServiceTracker tracker = mock(ServiceTracker.class);
+            when(tracker.getService()).thenReturn(mockEA);
+
+            final BundleContext bundleContext = mock(BundleContext.class);
+            when(bundleContext.createFilter(any(String.class))).thenReturn(null);
+            when(bundleContext.getServiceReference(any(String.class))).thenReturn(null);
+            when(bundleContext.getService(null)).thenReturn(mockEA);
+
+            final SynchronousJcrResourceListener listener = new SynchronousJcrResourceListener(factory, getRepository(),
+                            bundleContext, resolver, tracker);
+            Session newSession = null;
+            try {
+                createdPath = createTestPath();
+                createNode(session, createdPath);
+
+                Node modified = session.getNode(pathToModify);
+                modified.setProperty("foo", "bar");
+
+                session.save();
+
+                Node deleted = session.getNode(pathToDelete);
+                deleted.remove();
+                session.save();
+
+                newSession = getRepository().loginAdministrative(workspaceName);
+
+                EventHelper helper = new EventHelper(newSession);
+                helper.waitForEvents(5000);
+                helper.dispose();
+            } finally {
+                listener.dispose();
+                if ( newSession != null ) {
+                    newSession.logout();
+                }
             }
+            return events;
+        } finally {
+            session.logout();
+        }
 
-            public Resource getResource(Resource base, String path) {
-                // TODO Auto-generated method stub
-                return null;
-            }
-
-            public String[] getSearchPath() {
-                // TODO Auto-generated method stub
-                return null;
-            }
-
-            public Iterator<Resource> listChildren(Resource parent) {
-                // TODO Auto-generated method stub
-                return null;
-            }
-
-            public Iterator<Resource> findResources(String query, String language) {
-                // TODO Auto-generated method stub
-                return null;
-            }
-
-            public Iterator<Map<String, Object>> queryResources(String query, String language) {
-                // TODO Auto-generated method stub
-                return null;
-            }
-
-            public ResourceResolver clone(Map<String, Object> authenticationInfo) throws LoginException {
-                // TODO Auto-generated method stub
-                return null;
-            }
-
-            public boolean isLive() {
-                // TODO Auto-generated method stub
-                return false;
-            }
-
-            public void close() {
-                // TODO Auto-generated method stub
-
-            }
-
-            public String getUserID() {
-                // TODO Auto-generated method stub
-                return null;
-            }
-
-            public Iterator<String> getAttributeNames() {
-                // TODO Auto-generated method stub
-                return null;
-            }
-
-            public Object getAttribute(String name) {
-                // TODO Auto-generated method stub
-                return null;
-            }
-
-            public void delete(Resource resource) {
-                // TODO Auto-generated method stub
-            }
-
-            public Resource create(Resource parent, String name, Map<String, Object> properties) {
-                // TODO Auto-generated method stub
-                return null;
-            }
-
-            public void revert() {
-                // TODO Auto-generated method stub
-
-            }
-
-            public void commit() {
-                // TODO Auto-generated method stub
-
-            }
-
-            public boolean hasChanges() {
-                // TODO Auto-generated method stub
-                return false;
-            }
-        };
-        final ResourceResolverFactory factory = new ResourceResolverFactory() {
-
-            public ResourceResolver getResourceResolver(Map<String, Object> authenticationInfo) throws LoginException {
-                return null;
-            }
-
-            public ResourceResolver getAdministrativeResourceResolver(Map<String, Object> authenticationInfo) throws LoginException {
-                return resolver;
-            }
-        };
-
-        final EventAdmin mockEA = new EventAdmin() {
-
-            public void postEvent(Event event) {
-                events.add(event);
-            }
-
-            public void sendEvent(Event event) {
-                events.add(event);
-            }
-        };
-
-        final ServiceTracker tracker = mock(ServiceTracker.class);
-        when(tracker.getService()).thenReturn(mockEA);
-
-        final BundleContext bundleContext = mock(BundleContext.class);
-        when(bundleContext.createFilter(any(String.class))).thenReturn(null);
-        when(bundleContext.getServiceReference(any(String.class))).thenReturn(null);
-        when(bundleContext.getService(null)).thenReturn(mockEA);
-
-        SynchronousJcrResourceListener listener = new SynchronousJcrResourceListener(factory, getRepository(),
-                        bundleContext, resolver, tracker);
-
-        createdPath = createTestPath();
-        createNode(session, createdPath);
-
-        Node modified = session.getNode(pathToModify);
-        modified.setProperty("foo", "bar");
-        session.save();
-
-        Node deleted = session.getNode(pathToDelete);
-        deleted.remove();
-        session.save();
-
-        Session newSession = getRepository().loginAdministrative(workspaceName);
-        EventHelper helper = new EventHelper(newSession);
-        helper.waitForEvents(5000);
-        helper.dispose();
-        listener.dispose();
-
-        newSession.logout();
-        session.logout();
-
-        return events;
     }
 }

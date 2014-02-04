@@ -48,6 +48,11 @@ public class ClassLoaderResourceProvider implements LaunchpadContentProvider {
     public Iterator<String> getChildren(String path) {
         List<String> children;
 
+        // Guard against extra trailing slashes
+        if(path.endsWith("/") && path.length() > 1) {
+            path = path.substring(0, path.length()-1);
+        }
+        
         URL url = this.classLoader.getResource(path);
         if (url != null) {
             Pattern pathPattern = Pattern.compile("^" + path + "/[^/]+/?$");

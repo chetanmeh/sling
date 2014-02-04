@@ -38,7 +38,7 @@ public class MongoDBResource extends AbstractResource {
     private final ResourceResolver resourceResolver;
 
     /** Metadata. */
-    private final ResourceMetadata metadata = new ResourceMetadata();
+    protected ResourceMetadata metadata = new ResourceMetadata();
 
     /** The db object. */
     private DBObject dbObject;
@@ -58,6 +58,13 @@ public class MongoDBResource extends AbstractResource {
         this.provider = provider;
     }
 
+    public MongoDBResource(final MongoDBResource source) {
+        this.resourceResolver = source.resourceResolver;
+        this.resourcePath = source.resourcePath;
+        this.collection = source.collection;
+        this.dbObject = source.dbObject;
+        this.provider = source.provider;
+    }
     /**
      * @see org.apache.sling.api.resource.Resource#getPath()
      */
@@ -136,7 +143,7 @@ public class MongoDBResource extends AbstractResource {
 
     @Override
     public String toString() {
-        return "MongoDBResource [resourcePath=" + resourcePath + ", dbPath=" + this.dbObject.get(MongoDBResourceProvider.PROP_PATH) + ", collection=" + collection
+        return "MongoDBResource [resourcePath=" + resourcePath + ", dbPath=" + this.dbObject.get(provider.getPROP_PATH()) + ", collection=" + collection
                         + ", resourceResolver=" + resourceResolver + "]";
     }
 

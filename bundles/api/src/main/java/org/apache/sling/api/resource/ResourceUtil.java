@@ -18,6 +18,8 @@
  */
 package org.apache.sling.api.resource;
 
+import java.text.MessageFormat;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -28,6 +30,9 @@ import org.apache.sling.api.wrappers.ValueMapDecorator;
 /**
  * The <code>ResourceUtil</code> class provides helper methods dealing with
  * resources.
+ * <p>
+ * This class is not intended to be extended or instantiated because it just
+ * provides static utility methods not intended to be overwritten.
  */
 public class ResourceUtil {
 
@@ -162,6 +167,40 @@ public class ResourceUtil {
     }
 
     /**
+     * Utility method returns the ancestor's path at the given <code>level</code>
+     * relative to <code>path</code>, which is normalized by {@link #normalize(String)}
+     * before resolving the ancestor.
+     *
+     * <ul>
+     * <li><code>level</code> = 0 returns the <code>path</code>.</li>
+     * <li><code>level</code> = 1 returns the parent of <code>path</code>, if it exists, <code>null</code> otherwise.</li>
+     * <li><code>level</code> = 2 returns the grandparent of <code>path</code>, if it exists, <code>null</code> otherwise.</li>
+     * </ul>
+     *
+     * @param path The path whose ancestor is to be returned.
+     * @param level The relative level of the ancestor, relative to <code>path</code>.
+     * @return <code>null</code> if <code>path</code> doesn't have an ancestor at the
+     *            specified <code>level</code>.
+     * @throws IllegalArgumentException If the path cannot be normalized by the
+     *             {@link #normalize(String)} method or if <code>level</code> < 0.
+     * @throws NullPointerException If <code>path</code> is <code>null</code>.
+     * @since 2.2
+     */
+    public static String getParent(final String path, final int level) {
+        if ( level < 0 ) {
+            throw new IllegalArgumentException("level must be non-negative");
+        }
+        String result = path;
+        for(int i=0; i<level; i++) {
+            result = getParent(result);
+            if ( result == null ) {
+                break;
+            }
+        }
+        return result;
+    }
+
+    /**
      * Utility method returns the parent resource of the resource.
      *
      * @throws NullPointerException If <code>rsrc</code> is <code>null</code>.
@@ -170,11 +209,7 @@ public class ResourceUtil {
      */
     @Deprecated
     public static Resource getParent(Resource rsrc) {
-        final String parentPath = ResourceUtil.getParent(rsrc.getPath());
-        if (parentPath == null) {
-            return null;
-        }
-        return rsrc.getResourceResolver().getResource(parentPath);
+        return rsrc.getParent();
     }
 
     /**
@@ -370,7 +405,7 @@ public class ResourceUtil {
      * the resource type to a resource path by calling
      * {@link #resourceTypeToPath(String)} and uses the
      * <code>resourceResolver</code> to get the corresponding resource. If the
-     * resource exists, the {@link Resource#getResourceSuperType()} metod is
+     * resource exists, the {@link Resource#getResourceSuperType()} method is
      * called.
      *
      * @param resourceResolver The <code>ResourceResolver</code> used to access
@@ -384,33 +419,12 @@ public class ResourceUtil {
      *         <code>null</code> if the resource type does not exists or returns
      *         <code>null</code> for its super type.
      * @since 2.0.6
+     * @deprecated Use {@link ResourceResolver#getParentResourceType(String)}
      */
+    @Deprecated
     public static String getResourceSuperType(
             final ResourceResolver resourceResolver, final String resourceType) {
-        // normalize resource type to a path string
-        final String rtPath = resourceTypeToPath(resourceType);
-        // get the resource type resource and check its super type
-        String resourceSuperType = null;
-        // if the path is absolute, use it directly
-        if (rtPath != null && rtPath.startsWith("/")) {
-            final Resource rtResource = resourceResolver.getResource(rtPath);
-            if (rtResource != null) {
-                resourceSuperType = rtResource.getResourceSuperType();
-            }
-
-        } else {
-            // if the path is relative we use the search paths
-            for (final String searchPath : resourceResolver.getSearchPath()) {
-                final Resource rtResource = resourceResolver.getResource(searchPath
-                    + rtPath);
-                if (rtResource != null
-                    && rtResource.getResourceSuperType() != null) {
-                    resourceSuperType = rtResource.getResourceSuperType();
-                    break;
-                }
-            }
-        }
-        return resourceSuperType;
+        return resourceResolver.getParentResourceType(resourceType);
     }
 
     /**
@@ -424,14 +438,14 @@ public class ResourceUtil {
      * @return the super type of the <code>resource</code> or <code>null</code>
      *         if no super type could be computed.
      * @since 2.0.6
+     * @deprecated Use {@link ResourceResolver#getParentResourceType(Resource)}
      */
+    @Deprecated
     public static String findResourceSuperType(final Resource resource) {
-        String resourceSuperType = resource.getResourceSuperType();
-        if (resourceSuperType == null) {
-            resourceSuperType = getResourceSuperType(
-                resource.getResourceResolver(), resource.getResourceType());
+        if ( resource == null ) {
+            return null;
         }
-        return resourceSuperType;
+        return resource.getResourceResolver().getParentResourceType(resource);
     }
 
     /**
@@ -446,51 +460,18 @@ public class ResourceUtil {
      *         {@link Resource#isResourceType(String)} with the given
      *         <code>resourceType</code>.
      * @since 2.0.6
+     * @deprecated Use {@link ResourceResolver#isResourceType(Resource, String)}
      */
+    @Deprecated
     public static boolean isA(final Resource resource, final String resourceType) {
-        if (resource == null || resourceType == null) {
+        if ( resource == null ) {
             return false;
         }
-
-        try {
-            return resource.isResourceType(resourceType);
-        } catch (final AbstractMethodError ame) {
-            // this might occur with old pre 2.1.0 resource implementations (see SLING-2457)
-            return internalIsA(resource, resourceType);
-        }
+        return resource.getResourceResolver().isResourceType(resource, resourceType);
     }
 
     /**
-     * Check if the resource is of the given type. This method first checks the
-     * resource type of the resource, then its super resource type and continues
-     * to go up the resource super type hierarchy.
-     *
-     * @param resource the resource to check
-     * @param resourceType the resource type to check the resource against
-     * @return <code>false</code> if <code>resource</code> is <code>null</code>.
-     *         Otherwise returns the result of calling
-     *         {@link Resource#isResourceType(String)} with the given
-     *         <code>resourceType</code>.
-     */
-    static boolean internalIsA(final Resource resource, final String resourceType) {
-        if (resourceType.equals(resource.getResourceType())) {
-            return true;
-        }
-
-        String superType = findResourceSuperType(resource);
-        while (superType != null) {
-            if (resourceType.equals(superType)) {
-                return true;
-            }
-            superType = getResourceSuperType(resource.getResourceResolver(),
-                superType);
-        }
-
-        return false;
-    }
-
-    /**
-     * Return an iterator for objecs of the specified type. A new iterator is
+     * Return an iterator for objects of the specified type. A new iterator is
      * returned which tries to adapt the provided resources to the given type
      * (using {@link Resource#adaptTo(Class)}. If a resource in the original
      * iterator is not adaptable to the given class, this object is skipped.
@@ -533,5 +514,134 @@ public class ResourceUtil {
                 return result;
             }
         };
+    }
+
+    /**
+     * Creates or gets the resource at the given path.
+     *
+     * @param resolver The resource resolver to use for creation
+     * @param path     The full path to be created
+     * @param resourceType The optional resource type of the final resource to create
+     * @param intermediateResourceType THe optional resource type of all intermediate resources
+     * @param autoCommit If set to true, a commit is performed after each resource creation.
+     * @since 2.3.0
+     */
+    public static Resource getOrCreateResource(
+                            final ResourceResolver resolver,
+                            final String path,
+                            final String resourceType,
+                            final String intermediateResourceType,
+                            final boolean autoCommit)
+    throws PersistenceException {
+        final Map<String, Object> props;
+        if ( resourceType == null ) {
+            props = null;
+        } else {
+            props = Collections.singletonMap(ResourceResolver.PROPERTY_RESOURCE_TYPE, (Object)resourceType);
+        }
+        return getOrCreateResource(resolver, path, props, intermediateResourceType, autoCommit);
+    }
+
+    /**
+     * Creates or gets the resource at the given path.
+     *
+     * @param resolver The resource resolver to use for creation
+     * @param path     The full path to be created
+     * @param resourceProperties The optional resource properties of the final resource to create
+     * @param intermediateResourceType THe optional resource type of all intermediate resources
+     * @param autoCommit If set to true, a commit is performed after each resource creation.
+     * @since 2.3.0
+     */
+    public static Resource getOrCreateResource(
+            final ResourceResolver resolver,
+            final String path,
+            final Map<String, Object> resourceProperties,
+            final String intermediateResourceType,
+            final boolean autoCommit)
+    throws PersistenceException {
+        Resource rsrc = resolver.getResource(path);
+        if ( rsrc == null ) {
+            final int lastPos = path.lastIndexOf('/');
+            final String name = path.substring(lastPos + 1);
+
+            final Resource parentResource;
+            if ( lastPos == 0 ) {
+                parentResource = resolver.getResource("/");
+            } else {
+                final String parentPath = path.substring(0, lastPos);
+                parentResource = getOrCreateResource(resolver,
+                        parentPath,
+                        intermediateResourceType,
+                        intermediateResourceType,
+                        autoCommit);
+            }
+            if ( autoCommit ) {
+                resolver.refresh();
+            }
+            try {
+                rsrc = resolver.create(parentResource, name, resourceProperties);
+            } catch ( final PersistenceException pe ) {
+                // this could be thrown because someone else tried to create this
+                // node concurrently
+                resolver.refresh();
+                rsrc = resolver.getResource(parentResource, name);
+                if ( rsrc == null ) {
+                    throw pe;
+                }
+            }
+            if ( autoCommit ) {
+                try {
+                    resolver.commit();
+                    resolver.refresh();
+                    rsrc = resolver.getResource(parentResource, name);
+                } catch ( final PersistenceException pe ) {
+                    // try again - maybe someone else did create the resource in the meantime
+                    // or we ran into Jackrabbit's stale item exception in a clustered environment
+                    resolver.revert();
+                    resolver.refresh();
+                    rsrc = resolver.getResource(parentResource, name);
+                    if ( rsrc == null ) {
+                        rsrc = resolver.create(parentResource, name, resourceProperties);
+                        resolver.commit();
+                    }
+                }
+            }
+        }
+        return rsrc;
+    }
+
+    /**
+     * Create a unique name for a child of the <code>parent</code>.
+     * Creates a unique name and test if child already exists.
+     * If child resource with the same name exists, iterate until a unique one is found.
+     *
+     * @param parent The parent resource
+     * @param name   The name of the child resource
+     * @return a unique non-existing name for child resource for a given <code>parent</code>
+     *
+     * @throws {@link PersistenceException} if it can not find unique name for child resource.
+     * @throws {@link NullPointerException} if <code>parent</code> is null
+     * @since 2.5.0
+     */
+    public static String createUniqueChildName(final Resource parent, final String name)
+    throws PersistenceException {
+        if (parent.getChild(name) != null) {
+            // leaf node already exists, create new unique name
+            String childNodeName = null;
+            int i = 0;
+            do {
+                childNodeName = name + String.valueOf(i);
+                //just so that it does not run into an infinite loop
+                // this should not happen though :)
+                if (i == Integer.MAX_VALUE) {
+                    String message = MessageFormat.format("can not find a unique name {0} for {1}", name, parent.getPath());
+                    throw new PersistenceException(message);
+                }
+                i++;
+            } while (parent.getChild(childNodeName) != null);
+
+            return childNodeName;
+        }
+        return name;
     }
 }

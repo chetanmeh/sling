@@ -21,6 +21,8 @@ package org.apache.sling.api.request;
 import java.io.PrintWriter;
 import java.util.Iterator;
 
+import aQute.bnd.annotation.ProviderType;
+
 /**
  * The <code>RequestProgressTracker</code> class provides the functionality to
  * track the progress of request processing. Instances of this class are
@@ -77,6 +79,7 @@ import java.util.Iterator;
  * iterator of messages through the {@link #getMessages()} method. The
  * formatting of the tracking entries is implementation specific.
  */
+@ProviderType
 public interface RequestProgressTracker {
 
     /** Creates an entry with the given message */
@@ -120,8 +123,8 @@ public interface RequestProgressTracker {
     void dump(PrintWriter writer);
 
     /**
-     *  Call this when done processing the request - all calls except the first
-     *  one are ignored
+     *  Call this when done processing the request - only the first call of this
+     *  method is processed, all further calls to this method are ignored.
      */
     void done();
 }

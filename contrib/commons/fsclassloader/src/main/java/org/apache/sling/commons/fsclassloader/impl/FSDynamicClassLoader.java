@@ -35,20 +35,24 @@ public class FSDynamicClassLoader
     private final Set<String> hit = Collections.synchronizedSet(new HashSet<String>());
     private final Set<String> miss = Collections.synchronizedSet(new HashSet<String>());
 
+    private final DynamicClassLoader parentLoader;
+
     public FSDynamicClassLoader(final URL[] urls, final ClassLoader parent) {
         super(urls, parent);
+        parentLoader = (parent instanceof DynamicClassLoader ? (DynamicClassLoader)parent : null);
     }
 
     /**
      * @see org.apache.sling.commons.classloader.DynamicClassLoader#isLive()
      */
     public boolean isLive() {
-        return !isDirty;
+        return !isDirty && (parentLoader == null || parentLoader.isLive());
     }
 
     /**
      * @see java.lang.ClassLoader#loadClass(java.lang.String)
      */
+    @Override
     public Class<?> loadClass(final String name) throws ClassNotFoundException {
         try {
             final Class<?> c = super.loadClass(name);
@@ -61,6 +65,8 @@ public class FSDynamicClassLoader
     }
 
     public void check(final String className) {
-       this.isDirty = hit.contains(className) || miss.contains(className);
+        if ( !this.isDirty ) {
+            this.isDirty = hit.contains(className) || miss.contains(className);
+        }
     }
 }

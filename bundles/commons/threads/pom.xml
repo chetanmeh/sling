@@ -23,13 +23,13 @@
     <parent>
         <groupId>org.apache.sling</groupId>
         <artifactId>sling</artifactId>
-        <version>13</version>
+        <version>18</version>
         <relativePath>../../../parent/pom.xml</relativePath>
     </parent>
 
     <artifactId>org.apache.sling.commons.threads</artifactId>
     <packaging>bundle</packaging>
-    <version>3.1.1-SNAPSHOT</version>
+    <version>3.2.1-SNAPSHOT</version>
 
     <name>Apache Sling Thread Support</name>
     <description>
@@ -58,7 +58,8 @@
                             org.apache.sling.commons.threads.impl.Activator
                         </Bundle-Activator>
                         <Export-Package>
-                            org.apache.sling.commons.threads;version=3.2.0
+                            org.apache.sling.commons.threads;version=3.2.0,
+                            org.apache.sling.commons.threads.jmx;version=1.0.0
                         </Export-Package>
                         <Private-Package>
                             org.apache.sling.commons.threads.impl
@@ -82,6 +83,10 @@
         </plugins>
     </reporting>
     <dependencies>
+        <dependency>
+            <groupId>org.apache.felix</groupId>
+            <artifactId>org.apache.felix.scr.annotations</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.osgi</groupId>
             <artifactId>org.osgi.core</artifactId>

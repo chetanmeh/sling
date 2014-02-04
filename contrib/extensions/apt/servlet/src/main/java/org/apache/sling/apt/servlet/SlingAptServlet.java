@@ -55,6 +55,10 @@ import org.apache.sling.apt.parser.SlingAptParser;
 })
 public class SlingAptServlet extends SlingSafeMethodsServlet {
 
+    /**
+     * 
+     */
+    private static final long serialVersionUID = 39312431611309023L;
     @Reference
     protected SlingAptParser parser;
 
@@ -65,6 +69,7 @@ public class SlingAptServlet extends SlingSafeMethodsServlet {
                 HttpServletResponse.SC_BAD_REQUEST,
                 "Resource does not adapt to an InputStream: " + request.getResource()
             );
+            return;
         }
 
         // TODO which encoding to use for input??

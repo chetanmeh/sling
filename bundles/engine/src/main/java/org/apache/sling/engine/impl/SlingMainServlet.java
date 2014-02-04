@@ -174,6 +174,7 @@ public class SlingMainServlet extends GenericServlet {
 
     // ---------- Servlet API -------------------------------------------------
 
+    @Override
     public void service(ServletRequest req, ServletResponse res)
             throws ServletException {
 
@@ -416,7 +417,9 @@ public class SlingMainServlet extends GenericServlet {
             String[] patterns = OsgiUtil.toStringArray(componentConfig.get(PROP_TRACK_PATTERNS_REQUESTS), new String[0]);
             List<Pattern> compiledPatterns = new ArrayList<Pattern>(patterns.length);
             for (String pattern : patterns) {
-                compiledPatterns.add(Pattern.compile(pattern));
+                if(pattern != null && pattern.trim().length() > 0) {
+                    compiledPatterns.add(Pattern.compile(pattern));
+                }
             }
             RequestHistoryConsolePlugin.initPlugin(bundleContext, maxRequests, compiledPatterns);
         } catch (Throwable t) {
@@ -580,7 +583,7 @@ public class SlingMainServlet extends GenericServlet {
 
         // construct and set the new thread name of the form:
         // 127.0.0.1 [1224156108055] GET /system/console/config HTTP/1.1
-        StringBuffer buf = new StringBuffer();
+        final StringBuilder buf = new StringBuilder();
         buf.append(request.getRemoteAddr());
         buf.append(" [").append(System.currentTimeMillis()).append("] ");
         buf.append(request.getMethod()).append(' ');

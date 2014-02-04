@@ -28,6 +28,7 @@ import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -67,8 +68,11 @@ public class JcrPropertyMap
     /** A cache for the values. */
     final Map<String, Object> valueCache;
 
-    /** Has the node been read completly? */
+    /** Has the node been read completely? */
     boolean fullyRead;
+
+    /** keep all prefixes for escaping */
+    private String[] namespacePrefixes;
 
     private final ClassLoader dynamicClassLoader;
 
@@ -259,7 +263,7 @@ public class JcrPropertyMap
             final String name = prop.getName();
             String key = null;
             if ( name.indexOf("_x") != -1 ) {
-                // for compatiblity with older versions we use the (wrong)
+                // for compatibility with older versions we use the (wrong)
                 // ISO9075 path encoding
                 key = ISO9075.decode(name);
                 if ( key.equals(name) ) {
@@ -335,9 +339,10 @@ public class JcrPropertyMap
             return null;
         }
 
-        // if the node has been completely read we can directly return
-        if ( fullyRead ) {
-            return cache.get(name);
+        // check cache
+        JcrPropertyMapCacheEntry cachedValued = cache.get(name);
+        if ( fullyRead || cachedValued != null ) {
+            return cachedValued;
         }
 
         try {
@@ -351,7 +356,7 @@ public class JcrPropertyMap
         }
 
         try {
-            // for compatiblity with older versions we use the (wrong) ISO9075 path
+            // for compatibility with older versions we use the (wrong) ISO9075 path
             // encoding
             final String oldKey = ISO9075.encodePath(name);
             if (node.hasProperty(oldKey)) {
@@ -378,8 +383,7 @@ public class JcrPropertyMap
         // check if colon is neither the first nor the last character
         if (indexOfPrefix > 0 && key.length() > indexOfPrefix + 1) {
             final String prefix = key.substring(0, indexOfPrefix);
-            for (final String existingPrefix : getNode().getSession()
-                    .getNamespacePrefixes()) {
+            for (final String existingPrefix : getNamespacePrefixes()) {
                 if (existingPrefix.equals(prefix)) {
                     return prefix
                             + ":"
@@ -389,6 +393,16 @@ public class JcrPropertyMap
             }
         }
         return Text.escapeIllegalJcrChars(key);
+    }
+
+    /**
+    * Read namespace prefixes and store as member variable to minimize number of JCR API calls
+    */
+    private String[] getNamespacePrefixes() throws RepositoryException {
+        if (this.namespacePrefixes == null) {
+            this.namespacePrefixes = getNode().getSession().getNamespacePrefixes();
+        }
+        return this.namespacePrefixes;
     }
 
     /**
@@ -547,6 +561,14 @@ public class JcrPropertyMap
         } else if (Property.class == type) {
             return (T) entry.property;
 
+        } else if (ObjectInputStream.class == type) {
+            if ( jcrValue.getType() == PropertyType.BINARY ) {
+                try {
+                    return (T) new ObjectInputStream(jcrValue.getBinary().getStream(), this.dynamicClassLoader);
+                } catch (IOException ioe) {
+                    // ignore and use fallback
+                }
+            }
         } else if (Serializable.class.isAssignableFrom(type)
                 && jcrValue.getType() == PropertyType.BINARY) {
             ObjectInputStream ois = null;
@@ -596,6 +618,30 @@ public class JcrPropertyMap
 
 		return transformedEntries;
 	}
+
+
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("JcrPropertyMap [node=");
+        sb.append(this.node);
+        sb.append(", values={");
+        final Iterator<Map.Entry<String, Object>> iter = this.entrySet().iterator();
+        boolean first = true;
+        while ( iter.hasNext() ) {
+            if ( first ) {
+                first = false;
+            } else {
+                sb.append(", ");
+            }
+            final Map.Entry<String, Object> e = iter.next();
+            sb.append(e.getKey());
+            sb.append("=");
+            sb.append(e.getValue());
+        }
+        sb.append("}]");
+        return sb.toString();
+    }
+
 
     /**
      * This is an extended version of the object input stream which uses the

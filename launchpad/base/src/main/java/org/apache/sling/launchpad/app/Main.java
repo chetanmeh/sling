@@ -92,6 +92,18 @@ public class Main {
     private static final String PROP_HOST = "org.apache.felix.http.host";
 
     /**
+     * Name of the configuration property (or system property) indicating
+     * whether the shutdown hook should be installed or not. If this property is
+     * not set or set to {@code true} (case insensitive), the shutdown hook
+     * properly shutting down the framework is installed on startup. Otherwise,
+     * if this property is set to any value other than {@code true} (case
+     * insensitive) the shutdown hook is not installed.
+     * <p>
+     * The respective command line option is {@code -n}.
+     */
+    private static final String PROP_SHUTDOWN_HOOK = "sling.shutdown.hook";
+
+    /**
      * The main entry point to the Sling Launcher Standalone Java Application.
      * This method is generally only called by the Java VM to launch Sling.
      *
@@ -132,6 +144,15 @@ public class Main {
      * bundles.
      */
     private final Map<String, String> commandLineArgs;
+
+    /**
+     * Whether to install the shutdown hook.
+     *
+     * @see #PROP_SHUTDOWN_HOOK
+     * @see #installShutdownHook(Map)
+     * @see #addShutdownHook()
+     */
+    private boolean installShutdownHook;
 
     /**
      * The shutdown hook installed into the Java VM after Sling has been
@@ -184,6 +205,8 @@ public class Main {
         this.commandLineArgs = (args == null)
                 ? new HashMap<String, String>()
                 : args;
+
+        this.installShutdownHook = installShutdownHook(this.commandLineArgs);
 
         // sling.home from the command line or system properties, else default
         String home = getSlingHome(commandLineArgs);
@@ -433,9 +456,8 @@ public class Main {
     }
 
     private void addShutdownHook() {
-        if (this.shutdownHook == null) {
-            this.shutdownHook = new Thread(new ShutdownHook(),
-                "Apache Sling Terminator");
+        if (this.installShutdownHook && this.shutdownHook == null) {
+            this.shutdownHook = new Thread(new ShutdownHook(), "Apache Sling Terminator");
             Runtime.getRuntime().addShutdownHook(this.shutdownHook);
         }
     }
@@ -466,7 +488,7 @@ public class Main {
      * <li>Default value <code>sling</code></li>
      * </ol>
      *
-     * @param args The command line arguments
+     * @param commandLine The command line arguments
      * @return The value to use for sling.home
      */
     private static String getSlingHome(Map<String, String> commandLine) {
@@ -621,12 +643,32 @@ public class Main {
                 } else {
                     String key = String.valueOf(arg.charAt(1));
                     if (arg.length() > 2) {
-                        commandLine.put(key, arg.substring(2));
+                        final String val;
+                        final int indexOfEq = arg.indexOf('=');
+                        if (indexOfEq != -1) {
+                            //Handle case -Da=b
+                            key = arg.substring(1, indexOfEq);
+                            val = arg.substring(indexOfEq + 1);
+                        } else {
+                            val = arg.substring(2);
+                        }
+                        commandLine.put(key, val);
                     } else {
                         argc++;
                         if (argc < args.length
                             && (args[argc].equals("-") || !args[argc].startsWith("-"))) {
-                            commandLine.put(key, args[argc]);
+                            String val = args[argc];
+
+                            //Special handling for -D a=b
+                            if(key.equals("D")){
+                                final int indexOfEq = val.indexOf('=');
+                                if (indexOfEq != -1) {
+                                    //Handle case -D a=b. Add key as Da
+                                    key = "D" + val.substring(0, indexOfEq);
+                                    val = val.substring(indexOfEq + 1);
+                                }
+                            }
+                            commandLine.put(key, val);
                         } else {
                             commandLine.put(key, key);
                             argc--;
@@ -645,7 +687,7 @@ public class Main {
         if (args.remove("h") != null) {
             System.out.println("usage: "
                 + Main.class.getName()
-                + " [ start | stop | status ] [ -j adr ] [ -l loglevel ] [ -f logfile ] [ -c slinghome ] [ -i launchpadhome ] [ -a address ] [ -p port ] { -D n=v } [ -h ]");
+                + " [ start | stop | status ] [ -j adr ] [ -l loglevel ] [ -f logfile ] [ -c slinghome ] [ -i launchpadhome ] [ -a address ] [ -p port ] { -Dn=v } [ -h ]");
 
             System.out.println("    start         listen for control connection (uses -j)");
             System.out.println("    stop          terminate running Apache Sling (uses -j)");
@@ -658,12 +700,24 @@ public class Main {
             System.out.println("    -a address    the interfact to bind to (use 0.0.0.0 for any)");
             System.out.println("    -p port       the port to listen to (default 8080)");
             System.out.println("    -r path       the root servlet context path for the http service (default is /)");
-            System.out.println("    -D n=v        sets property n to value v");
+            System.out.println("    -n            don't install the shutdown hook");
+            System.out.println("    -Dn=v         sets property n to value v. Make sure to use this option *after* " +
+                                                  "the jar filename. The JVM also has a -D option which has a " +
+                                                  "different meaning");
             System.out.println("    -h            prints this usage message");
 
             return true;
         }
         return false;
+    }
+
+    private static boolean installShutdownHook(Map<String, String> props) {
+        String prop = props.remove(PROP_SHUTDOWN_HOOK);
+        if (prop == null) {
+            prop = System.getProperty(PROP_SHUTDOWN_HOOK);
+        }
+
+        return (prop == null) ? true : Boolean.valueOf(prop);
     }
 
     // default accessor to enable unit tests wihtout requiring reflection
@@ -672,7 +726,7 @@ public class Main {
         final HashMap<String, String> props = new HashMap<String, String>();
         boolean errorArg = false;
         for (Entry<String, String> arg : rawArgs.entrySet()) {
-            if (arg.getKey().length() == 1) {
+            if (arg.getKey().length() == 1 || arg.getKey().startsWith("D")) {
                 String value = arg.getValue();
                 switch (arg.getKey().charAt(0)) {
                     case 'j':
@@ -756,15 +810,25 @@ public class Main {
                         props.put(PROP_CONTEXT_PATH, value);
                         break;
 
+                    case 'n':
+                        props.put(PROP_SHUTDOWN_HOOK, Boolean.FALSE.toString());
+                        break;
+
                     case 'D':
                         if (value == arg.getKey()) {
                             errorArg("-D", "Missing property assignment");
                             errorArg = true;
                             continue;
                         }
-                        String[] parts = value.split("=");
-                        int valueIdx = (parts.length > 1) ? 1 : 0;
-                        props.put(parts[0], parts[valueIdx]);
+                        if (arg.getKey().length() > 1) {
+                            //Dfoo=bar arg.key=Dfoo and arg.value=bar
+                            props.put(arg.getKey().substring(1), arg.getValue());
+                        } else {
+                            //D foo=bar arg.key=D and arg.value=foo=bar
+                            String[] parts = value.split("=");
+                            int valueIdx = (parts.length > 1) ? 1 : 0;
+                            props.put(parts[0], parts[valueIdx]);
+                        }
                         break;
 
                     default:

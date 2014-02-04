@@ -35,15 +35,14 @@ public class OsgiConsoleTest extends SlingTestBase {
                 "licenses",
                 "logs",
                 "memoryusage",
-                "services",
-                "shell"
+                "services"
         };
         
         for(String subpath : subpaths) {
             final String path = "/system/console/" + subpath;
             getRequestExecutor().execute(
                     getRequestBuilder().buildGetRequest(path)
-                    .withCredentials("admin", "admin")
+                    .withCredentials(getServerUsername(), getServerPassword())
             ).assertStatus(200);
         }
     }

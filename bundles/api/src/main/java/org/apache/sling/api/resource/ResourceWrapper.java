@@ -97,6 +97,13 @@ public class ResourceWrapper implements Resource {
     }
 
     /**
+     * @see org.apache.sling.api.resource.Resource#getChildren()
+     */
+    public Iterable<Resource> getChildren() {
+        return getResource().getChildren();
+    }
+
+    /**
      * Returns the value of calling <code>getResourceMetadata</code> on the
      * {@link #getResource() wrapped resource}.
      */
@@ -129,6 +136,16 @@ public class ResourceWrapper implements Resource {
     }
 
     /**
+     * Returns the value of calling <code>hasChildren</code> on the
+     * {@link #getResource() wrapped resource}.
+     * 
+     * @since 2.4.4
+     */
+	public boolean hasChildren() {
+		return getResource().hasChildren();
+	}
+    
+    /**
      * Returns the value of calling <code>isResourceType</code> on the
      * {@link #getResource() wrapped resource}.
      *
@@ -155,7 +172,7 @@ public class ResourceWrapper implements Resource {
     @Override
     public String toString() {
         final String className;
-        if ( getClass().getSimpleName() == null ) {
+        if (getClass().getSimpleName().length() == 0) {
             className = getClass().getName();
         } else {
             className = getClass().getSimpleName();
@@ -163,4 +180,5 @@ public class ResourceWrapper implements Resource {
         return className + ", type=" + getResourceType()
             + ", path=" + getPath() + ", resource=[" + getResource() + "]";
     }
+	
 }

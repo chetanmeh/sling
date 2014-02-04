@@ -25,45 +25,44 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import java.io.BufferedReader;
-import java.security.Principal;
-import java.util.Enumeration;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.Locale;
+import java.util.List;
 import java.util.Map;
 
 import javax.jcr.Session;
-import javax.servlet.RequestDispatcher;
-import javax.servlet.ServletInputStream;
-import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpSession;
 
-import org.apache.sling.api.resource.AbstractResource;
+import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.NonExistingResource;
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.api.resource.ResourceMetadata;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
+import org.apache.sling.api.resource.SyntheticResource;
+import org.apache.sling.resourceresolver.impl.helper.MockFeaturesHolder;
 import org.apache.sling.resourceresolver.impl.helper.ResourceResolverContext;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 public class ResourceResolverImplTest {
+
+    private CommonResourceResolverFactoryImpl commonFactory;
 
     private ResourceResolver resResolver;
 
     private ResourceResolverFactoryImpl resFac;
 
     @Before public void setup() {
-        resFac = new ResourceResolverFactoryImpl(new ResourceResolverFactoryActivator());
-        resResolver = new ResourceResolverImpl(resFac, new ResourceResolverContext(false, null));
+        commonFactory = new CommonResourceResolverFactoryImpl(new ResourceResolverFactoryActivator());
+        resFac = new ResourceResolverFactoryImpl(commonFactory, /* TODO: using Bundle */ null, null);
+        resResolver = new ResourceResolverImpl(commonFactory, new ResourceResolverContext(false, null, new ResourceAccessSecurityTracker(), MockFeaturesHolder.INSTANCE));
     }
 
     @Test public void testClose() throws Exception {
-        final ResourceResolver rr = new ResourceResolverImpl(resFac, new ResourceResolverContext(false, null));
+        final ResourceResolver rr = new ResourceResolverImpl(commonFactory, new ResourceResolverContext(false, null, new ResourceAccessSecurityTracker(), MockFeaturesHolder.INSTANCE));
         assertTrue(rr.isLive());
         rr.close();
         assertFalse(rr.isLive());
@@ -176,26 +175,26 @@ public class ResourceResolverImplTest {
         final Resource res00 = resResolver.resolve((String) null);
         assertNotNull(res00);
         assertTrue("Resource must be NonExistingResource",
-                        res00 instanceof NonExistingResource);
+                res00 instanceof NonExistingResource);
         assertEquals("Null path is expected to return root", "/",
-            res00.getPath());
+                res00.getPath());
 
         // relative paths are treated as if absolute
         final String path01 = "relPath/relPath";
         final Resource res01 = resResolver.resolve(path01);
         assertNotNull(res01);
         assertEquals("Expecting absolute path for relative path", "/" + path01,
-            res01.getPath());
+                res01.getPath());
         assertTrue("Resource must be NonExistingResource",
-            res01 instanceof NonExistingResource);
+                res01 instanceof NonExistingResource);
 
         final String no_resource_path = "/no_resource/at/this/location";
         final Resource res02 = resResolver.resolve(no_resource_path);
         assertNotNull(res02);
         assertEquals("Expecting absolute path for relative path",
-            no_resource_path, res02.getPath());
+                no_resource_path, res02.getPath());
         assertTrue("Resource must be NonExistingResource",
-            res01 instanceof NonExistingResource);
+                res01 instanceof NonExistingResource);
 
         try {
             resResolver.resolve((HttpServletRequest) null);
@@ -207,25 +206,40 @@ public class ResourceResolverImplTest {
         final Resource res0 = resResolver.resolve(null, no_resource_path);
         assertNotNull("Expecting resource if resolution fails", res0);
         assertTrue("Resource must be NonExistingResource",
-            res0 instanceof NonExistingResource);
+                res0 instanceof NonExistingResource);
         assertEquals("Path must be the original path", no_resource_path,
-            res0.getPath());
+                res0.getPath());
 
-        final HttpServletRequest req1 = new ResourceResolverTestRequest(
-            no_resource_path);
+        final HttpServletRequest req1 = Mockito.mock(HttpServletRequest.class);
+        Mockito.when(req1.getProtocol()).thenReturn("http");
+        Mockito.when(req1.getServerName()).thenReturn("localhost");
+        Mockito.when(req1.getPathInfo()).thenReturn(no_resource_path);
+
         final Resource res1 = resResolver.resolve(req1);
         assertNotNull("Expecting resource if resolution fails", res1);
         assertTrue("Resource must be NonExistingResource",
-            res1 instanceof NonExistingResource);
+                res1 instanceof NonExistingResource);
         assertEquals("Path must be the original path", no_resource_path,
-            res1.getPath());
+                res1.getPath());
 
-        final HttpServletRequest req2 = new ResourceResolverTestRequest(null);
+        final HttpServletRequest req2 = Mockito.mock(HttpServletRequest.class);
+        Mockito.when(req2.getProtocol()).thenReturn("http");
+        Mockito.when(req2.getServerName()).thenReturn("localhost");
+        Mockito.when(req2.getPathInfo()).thenReturn(null);
         final Resource res2 = resResolver.resolve(req2);
         assertNotNull("Expecting resource if resolution fails", res2);
         assertTrue("Resource must be NonExistingResource",
-            res2 instanceof NonExistingResource);
+                res2 instanceof NonExistingResource);
         assertEquals("Path must be the the root path", "/", res2.getPath());
+
+        final Resource res3 = resResolver.getResource(null);
+        assertNull("Expected null resource for null path", res3);
+
+        final Resource res4 = resResolver.getResource(null, null);
+        assertNull("Expected null resource for null path", res4);
+
+        final Resource res5 = resResolver.getResource(res01, null);
+        assertNull("Expected null resource for null path", res5);
     }
 
     @Test public void test_clone_based_on_anonymous() throws Exception {
@@ -297,12 +311,14 @@ public class ResourceResolverImplTest {
         assertTrue(validNames.remove(names.next()));
         assertFalse("Expect no more names", names.hasNext());
         assertTrue("Expect validNames set to be empty now",
-            validNames.isEmpty());
+                validNames.isEmpty());
 
         rr.close();
     }
 
     @Test public void testBasicCrud() throws Exception {
+        final Resource r = Mockito.mock(Resource.class);
+        Mockito.when(r.getPath()).thenReturn("/some");
         try {
             this.resResolver.create(null, "a", null);
             fail("Null parent resource should throw NPE");
@@ -310,290 +326,115 @@ public class ResourceResolverImplTest {
             // correct
         }
         try {
-            this.resResolver.create(new ResourceImpl(), null, null);
+            this.resResolver.create(r, null, null);
             fail("Null name should throw NPE");
         } catch (final NullPointerException npe) {
             // correct
         }
         try {
-            this.resResolver.create(new ResourceImpl(), "a/b", null);
+            this.resResolver.create(r, "a/b", null);
             fail("Slash in name should throw illegal argument exception");
         } catch (final IllegalArgumentException pe) {
             // correct
         }
         try {
-            this.resResolver.create(new ResourceImpl(), "a", null);
+            this.resResolver.create(r, "a", null);
             fail("This should be unsupported.");
         } catch (final UnsupportedOperationException uoe) {
             // correct
         }
     }
 
-    private static final class ResourceImpl extends AbstractResource {
+    @Test public void test_getResourceSuperType() {
+        // the resource resolver
+        final List<ResourceResolver> resolvers = new ArrayList<ResourceResolver>();
+        final PathBasedResourceResolverImpl resolver = new PathBasedResourceResolverImpl(
+                new CommonResourceResolverFactoryImpl(new ResourceResolverFactoryActivator()) {
 
-        public String getPath() {
-            return "/some";
+                    @Override
+                    public ResourceResolver getAdministrativeResourceResolver(
+                            Map<String, Object> authenticationInfo)
+                            throws LoginException {
+                        return resolvers.get(0);
+                    }
+
+                },
+                new ResourceResolverContext(false, null, new ResourceAccessSecurityTracker(), null));
+        resolvers.add(resolver);
+
+        // the resources to test
+        final Resource r = Mockito.mock(Resource.class);
+        Mockito.when(r.getResourceType()).thenReturn("a:b");
+        final Resource r2 = Mockito.mock(Resource.class);
+        Mockito.when(r2.getResourceType()).thenReturn("a:c");
+        final Resource typeResource = Mockito.mock(Resource.class);
+        Mockito.when(typeResource.getResourceType()).thenReturn("x:y");
+        Mockito.when(typeResource.getResourceSuperType()).thenReturn("t:c");
+
+        resolver.setResource("/a", r);
+        resolver.setResource("/a/b", typeResource);
+
+        assertEquals("t:c", resolver.getParentResourceType(r.getResourceType()));
+        assertNull(resolver.getParentResourceType(r2.getResourceType()));
+    }
+
+    @Test public void test_isA() {
+        final Resource typeResource = Mockito.mock(Resource.class);
+        Mockito.when(typeResource.getResourceType()).thenReturn("x:y");
+        Mockito.when(typeResource.getResourceSuperType()).thenReturn("t:c");
+
+        final List<ResourceResolver> resolvers = new ArrayList<ResourceResolver>();
+        final PathBasedResourceResolverImpl resolver = new PathBasedResourceResolverImpl(
+                new CommonResourceResolverFactoryImpl(new ResourceResolverFactoryActivator()) {
+
+                    @Override
+                    public ResourceResolver getAdministrativeResourceResolver(
+                            Map<String, Object> authenticationInfo)
+                            throws LoginException {
+                        return resolvers.get(0);
+                    }
+
+                },
+                new ResourceResolverContext(false, null, new ResourceAccessSecurityTracker(), null));
+        resolvers.add(resolver);
+        final Resource r = new SyntheticResource(resolver, "/a", "a:b") {
+            @Override
+            public String getResourceSuperType() {
+                return "d:e";
+            }
+        };
+        resolver.setResource("/a", r);
+        resolver.setResource("/d/e", typeResource);
+
+        assertTrue(resolver.isResourceType(r, "a:b"));
+        assertTrue(resolver.isResourceType(r, "d:e"));
+        assertFalse(resolver.isResourceType(r, "x:y"));
+        assertTrue(resolver.isResourceType(r, "t:c"));
+        assertFalse(resolver.isResourceType(r, "h:p"));
+    }
+
+    private static class PathBasedResourceResolverImpl extends ResourceResolverImpl {
+
+        private final Map<String, Resource> resources = new HashMap<String, Resource>();
+
+        public PathBasedResourceResolverImpl(
+                CommonResourceResolverFactoryImpl factory, ResourceResolverContext ctx) {
+            super(factory, ctx);
         }
 
-        public String getResourceType() {
-            return null;
+        public void setResource(final String path, final Resource r) {
+            this.resources.put(path, r);
         }
 
-        public String getResourceSuperType() {
-            return null;
+        @Override
+        public String[] getSearchPath() {
+            return new String[] {""};
         }
 
-        public ResourceMetadata getResourceMetadata() {
-            return null;
-        }
-
-        public ResourceResolver getResourceResolver() {
-            return null;
-        }
-    };
-
-    private static final class ResourceResolverTestRequest implements
-    HttpServletRequest {
-
-        private final String pathInfo;
-
-        private final String method;
-
-        private final String scheme;
-
-        private final String host;
-
-        private final int port;
-
-        private final Map<String, Object> attrs = new HashMap<String, Object>();
-
-        private String contextPath;
-
-        ResourceResolverTestRequest(String pathInfo) {
-            this(null, null, -1, pathInfo, null);
-        }
-
-        ResourceResolverTestRequest(String scheme, String host, int port,
-                String pathInfo, String httpMethod) {
-            this.scheme = (scheme == null) ? "http" : scheme;
-            this.host = (host == null) ? "localhost" : host;
-            this.port = port;
-            this.pathInfo = pathInfo;
-            this.method = httpMethod;
-        }
-
-        public String getPathInfo() {
-            return pathInfo;
-        }
-
-        public Object getAttribute(String name) {
-            return attrs.get(name);
-        }
-
-        public Enumeration<?> getAttributeNames() {
-            return null;
-        }
-
-        public String getCharacterEncoding() {
-            return null;
-        }
-
-        public int getContentLength() {
-            return 0;
-        }
-
-        public String getContentType() {
-            return null;
-        }
-
-        public ServletInputStream getInputStream() {
-            return null;
-        }
-
-        public String getLocalAddr() {
-            return null;
-        }
-
-        public String getLocalName() {
-            return null;
-        }
-
-        public int getLocalPort() {
-            return 0;
-        }
-
-        public Locale getLocale() {
-            return null;
-        }
-
-        public Enumeration<?> getLocales() {
-            return null;
-        }
-
-        public String getParameter(String name) {
-            return null;
-        }
-
-        public Map<?, ?> getParameterMap() {
-            return null;
-        }
-
-        public Enumeration<?> getParameterNames() {
-            return null;
-        }
-
-        public String[] getParameterValues(String name) {
-            return null;
-        }
-
-        public String getProtocol() {
-            return null;
-        }
-
-        public BufferedReader getReader() {
-            return null;
-        }
-
-        public String getRealPath(String path) {
-            return null;
-        }
-
-        public String getRemoteAddr() {
-            return null;
-        }
-
-        public String getRemoteHost() {
-            return null;
-        }
-
-        public int getRemotePort() {
-            return 0;
-        }
-
-        public RequestDispatcher getRequestDispatcher(String path) {
-            return null;
-        }
-
-        public String getScheme() {
-            return scheme;
-        }
-
-        public String getServerName() {
-            return host;
-        }
-
-        public int getServerPort() {
-            return port;
-        }
-
-        public boolean isSecure() {
-            return false;
-        }
-
-        public String getContextPath() {
-            return contextPath;
-        }
-
-        public void removeAttribute(String name) {
-        }
-
-        public void setAttribute(String name, Object o) {
-            attrs.put(name, o);
-        }
-
-        public void setCharacterEncoding(String env) {
-        }
-
-        public String getAuthType() {
-            return null;
-        }
-
-        public Cookie[] getCookies() {
-            return null;
-        }
-
-        public long getDateHeader(String name) {
-            return 0;
-        }
-
-        public String getHeader(String name) {
-            return null;
-        }
-
-        public Enumeration<?> getHeaderNames() {
-            return null;
-        }
-
-        public Enumeration<?> getHeaders(String name) {
-            return null;
-        }
-
-        public int getIntHeader(String name) {
-            return 0;
-        }
-
-        public String getMethod() {
-            return method;
-        }
-
-        public String getPathTranslated() {
-            return null;
-        }
-
-        public String getQueryString() {
-            return null;
-        }
-
-        public String getRemoteUser() {
-            return null;
-        }
-
-        public String getRequestURI() {
-            return null;
-        }
-
-        public StringBuffer getRequestURL() {
-            return null;
-        }
-
-        public String getRequestedSessionId() {
-            return null;
-        }
-
-        public String getServletPath() {
-            return null;
-        }
-
-        public HttpSession getSession() {
-            return null;
-        }
-
-        public HttpSession getSession(boolean create) {
-            return null;
-        }
-
-        public Principal getUserPrincipal() {
-            return null;
-        }
-
-        public boolean isRequestedSessionIdFromCookie() {
-            return false;
-        }
-
-        public boolean isRequestedSessionIdFromURL() {
-            return false;
-        }
-
-        public boolean isRequestedSessionIdFromUrl() {
-            return false;
-        }
-
-        public boolean isRequestedSessionIdValid() {
-            return false;
-        }
-
-        public boolean isUserInRole(String role) {
-            return false;
+        @Override
+        public Resource getResource(final String path) {
+            final String p = (path.startsWith("/") ? path : "/" + path);
+            return this.resources.get(p);
         }
     }
 }

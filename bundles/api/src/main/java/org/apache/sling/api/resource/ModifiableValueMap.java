@@ -18,6 +18,8 @@
  */
 package org.apache.sling.api.resource;
 
+import aQute.bnd.annotation.ConsumerType;
+
 /**
  * The <code>ModifiableValueMap</code> is an extension
  * of the {@link ValueMap} which allows to modify and
@@ -49,8 +51,13 @@ package org.apache.sling.api.resource;
  *  <li>{@link #clear()}</li>
  * </ul>
  * <p>
+ *
+ * A modifiable value map should value {@link ResourceResolver#PROPERTY_RESOURCE_TYPE}
+ * to set the resource type of a resource.
+ *
  * @since 2.2
  */
+@ConsumerType
 public interface ModifiableValueMap extends ValueMap {
 
     // just a marker

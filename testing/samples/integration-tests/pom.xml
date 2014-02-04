@@ -23,7 +23,7 @@
     <parent>
         <groupId>org.apache.sling</groupId>
         <artifactId>sling</artifactId>
-        <version>13</version>
+        <version>18</version>
         <relativePath>../../../parent/pom.xml</relativePath>
     </parent>
 
@@ -65,6 +65,12 @@
         
          <!-- Set this to run tests against a specific hostname, if test.server.url is not set-->
          <test.server.hostname />
+
+        <!-- Set this to use a different username for remote execution of sling junit tests -->
+        <test.server.username />
+
+        <!-- Set this to use a different password for remote execution of sling junit tests -->
+        <test.server.password />
         
         <!-- Options for the VM that executes our runnable jar -->
         <jar.executor.vm.options>-Xmx512m</jar.executor.vm.options>
@@ -93,14 +99,13 @@
         <plugins>
            <plugin>
                 <artifactId>maven-clean-plugin</artifactId>
-                <version>2.2</version>
                 <configuration>
                     <filesets>
                         <fileset>
                             <directory>${basedir}</directory>
                             <includes>
                                 <!-- sling folder is the workdir of the executable jar that we test -->
-                                <include>sling</include>
+                                <include>sling/**</include>
                             </includes>
                         </fileset>
                     </filesets>
@@ -165,7 +170,6 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.5</version>
                 <configuration>
                     <!-- We run all tests in the integration-tests phase -->
                     <excludes>
@@ -176,7 +180,6 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
-                <version>2.7.2</version>
                 <executions>
                     <execution>
                         <id>integration-test</id>
@@ -199,6 +202,8 @@
                     <systemPropertyVariables>
                         <test.server.url>${test.server.url}</test.server.url>
                         <test.server.hostname>${test.server.hostname}</test.server.hostname>
+                        <test.server.username>${test.server.username}</test.server.username>
+                        <test.server.password>${test.server.password}</test.server.password>
                         <jar.executor.server.port>${http.port}</jar.executor.server.port>
                         <jar.executor.vm.options>${jar.executor.vm.options}</jar.executor.vm.options>
                         <jar.executor.jar.folder>${project.basedir}/target/dependency</jar.executor.jar.folder>
@@ -239,13 +244,13 @@
         <dependency>
             <groupId>org.apache.sling</groupId>
             <artifactId>org.apache.sling.junit.core</artifactId>
-            <version>1.0.7-SNAPSHOT</version>
+            <version>1.0.8</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.sling</groupId>
             <artifactId>org.apache.sling.junit.scriptable</artifactId>
-            <version>1.0.7-SNAPSHOT</version>
+            <version>1.0.8</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -262,14 +267,20 @@
         </dependency>
         <dependency>
             <groupId>org.apache.sling</groupId>
-            <version>1.0.7-SNAPSHOT</version>
             <artifactId>org.apache.sling.junit.remote</artifactId>
+            <version>1.0.8</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.sling</groupId>
             <artifactId>org.apache.sling.testing.tools</artifactId>
-            <version>1.0.5-SNAPSHOT</version>
+            <version>1.0.7-SNAPSHOT</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.sling</groupId>
+            <artifactId>org.apache.sling.servlets.post</artifactId>
+            <version>2.3.3-SNAPSHOT</version>
             <scope>provided</scope>
         </dependency>
         
@@ -297,12 +308,17 @@
             <groupId>org.apache.sling</groupId>
             <artifactId>org.apache.sling.launchpad</artifactId>
             <classifier>standalone</classifier>
-            <version>6</version>
+            <version>7-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
             <version>1.5.11</version>
+        </dependency>
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
+            <version>1.4</version>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>

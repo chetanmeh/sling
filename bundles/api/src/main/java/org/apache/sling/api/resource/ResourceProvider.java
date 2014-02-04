@@ -24,6 +24,8 @@ import javax.servlet.http.HttpServletRequest;
 
 import org.apache.sling.api.SlingException;
 
+import aQute.bnd.annotation.ConsumerType;
+
 /**
  * API for providers of resources. Used by the {@link ResourceResolver} to
  * transparently access resources from different locations such as a JCR
@@ -38,6 +40,7 @@ import org.apache.sling.api.SlingException;
  * upon successful authentication returns a resource provider with the
  * given user credentials.
  */
+@ConsumerType
 public interface ResourceProvider {
 
     /**
@@ -65,6 +68,18 @@ public interface ResourceProvider {
     String OWNS_ROOTS = "provider.ownsRoots";
 
     /**
+     * The name of the service registration property containing the a boolean
+     * flag indicating if the ResourceAccessSecurity service should be used for
+     * this provider or not. ResourceProvider implementations are encouraged
+     * to use the ResourceAccessSecurity service for access control unless
+     * the underlying storage already provides it.
+     * The default for this value is <code>false</code>.
+     * (value is "provider.useResourceAccessSecurity")
+     * @since 2.4
+     */
+    String USE_RESOURCE_ACCESS_SECURITY = "provider.useResourceAccessSecurity";
+
+    /**
      * The resource type be set on resources returned by the
      * {@link #listChildren(Resource)} method to enable traversing the
      * resource
@@ -82,9 +97,9 @@ public interface ResourceProvider {
      * <p>
      * This method is called to resolve a resource for the given request.
      * The properties of the request, such as request
-     * parameters, may be use to parametrize the resource resolution. An
-     * example of such parametrization is support for a JSR-311
-     * style resource provider to support the parametrized URL patterns.
+     * parameters, may be use to parameterize the resource resolution. An
+     * example of such parameterization is support for a JSR-311
+     * style resource provider to support the parameterized URL patterns.
      *
      * @param resourceResolver
      *            The {@link ResourceResolver} to which the returned
@@ -102,6 +117,12 @@ public interface ResourceProvider {
      * Returns a resource from this resource provider or <code>null</code> if
      * the resource provider cannot find it. The path should have one of the {@link #ROOTS}
      * strings as its prefix.
+     *
+     * The resource provider must not return cached instances for a resource as
+     * the resource resolver will update the resource metadata of the resource
+     * at the end of the resolution process and this metadata might be different
+     * depending on the full path of resource resolution passed into the
+     * resource resolver.
      *
      * @param resourceResolver
      *            The {@link ResourceResolver} to which the returned {@link Resource} is attached.
@@ -128,6 +149,9 @@ public interface ResourceProvider {
      *  to traverse the resource
      * tree. Such resources SHOULD be {@link SyntheticResource} objects whose resource type MUST be set to
      * {@link #RESOURCE_TYPE_SYNTHETIC}.
+     *
+     * As with {@link #getResource(ResourceResolver, String)} the returned Resource objects must
+     * not be cached objects.
      *
      * @param parent
      *            The {@link Resource Resource} whose children are requested.

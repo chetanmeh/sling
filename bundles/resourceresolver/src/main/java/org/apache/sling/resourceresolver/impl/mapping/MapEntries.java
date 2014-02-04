@@ -77,6 +77,8 @@ public class MapEntries implements EventHandler {
 
     public static final String DEFAULT_MAP_ROOT = "/etc/map";
 
+    public static final int DEFAULT_DEFAULT_VANITY_PATH_REDIRECT_STATUS = HttpServletResponse.SC_FOUND;
+
     private static final String JCR_SYSTEM_PREFIX = "/jcr:system/";
 
     static final String ANY_SCHEME_HOST = "[^/]+/[^/]+";
@@ -106,6 +108,8 @@ public class MapEntries implements EventHandler {
 
     private final ReentrantLock initializing = new ReentrantLock();
 
+    private final boolean enabledVanityPaths;
+
     @SuppressWarnings("unchecked")
     private MapEntries() {
         this.factory = null;
@@ -118,6 +122,7 @@ public class MapEntries implements EventHandler {
         this.aliasMap = Collections.<String, Map<String, String>>emptyMap();
         this.registration = null;
         this.eventAdmin = null;
+        this.enabledVanityPaths = true;
     }
 
     @SuppressWarnings("unchecked")
@@ -126,6 +131,7 @@ public class MapEntries implements EventHandler {
         this.resolver = factory.getAdministrativeResourceResolver(null);
         this.factory = factory;
         this.mapRoot = factory.getMapRoot();
+        this.enabledVanityPaths = factory.isVanityPathEnabled();
         this.eventAdmin = eventAdmin;
 
         this.resolveMapsMap = Collections.singletonMap(GLOBAL_LIST_KEY, (List<MapEntry>)Collections.EMPTY_LIST);
@@ -137,7 +143,7 @@ public class MapEntries implements EventHandler {
 
         final Dictionary<String, String> props = new Hashtable<String, String>();
         props.put(EventConstants.EVENT_TOPIC, "org/apache/sling/api/resource/*");
-        props.put(EventConstants.EVENT_FILTER, createFilter());
+        props.put(EventConstants.EVENT_FILTER, createFilter(this.enabledVanityPaths));
         props.put(Constants.SERVICE_DESCRIPTION, "Map Entries Observation");
         props.put(Constants.SERVICE_VENDOR, "The Apache Software Foundation");
         this.registration = bundleContext.registerService(EventHandler.class.getName(), this, props);
@@ -201,7 +207,7 @@ public class MapEntries implements EventHandler {
             loadResolverMap(resolver, globalResolveMap, newMapMaps);
 
             // load the configuration into the resolver map
-            final Collection<String> vanityTargets = this.loadVanityPaths(resolver, newResolveMapsMap);
+            final Collection<String> vanityTargets = (this.enabledVanityPaths ? this.loadVanityPaths(resolver, newResolveMapsMap) : Collections.<String> emptySet());
             loadConfiguration(factory, globalResolveMap);
 
             // load the configuration into the mapper map
@@ -358,15 +364,21 @@ public class MapEntries implements EventHandler {
         // check whether a remove event has an influence on vanity paths
         boolean doInit = true;
         if (SlingConstants.TOPIC_RESOURCE_REMOVED.equals(event.getTopic()) && !path.startsWith(this.mapRoot)) {
+            final String checkPath;
+            if ( path.endsWith("/jcr:content") ) {
+                checkPath = path.substring(0, path.length() - 12);
+            } else {
+                checkPath = path;
+            }
             doInit = false;
             for (final String target : this.vanityTargets) {
-                if (target.startsWith(path)) {
+                if (target.startsWith(checkPath)) {
                     doInit = true;
                     break;
                 }
             }
             for (final String target : this.aliasMap.keySet()) {
-                if (target.startsWith(path)) {
+                if (target.startsWith(checkPath)) {
                     doInit = true;
                     break;
                 }
@@ -386,10 +398,7 @@ public class MapEntries implements EventHandler {
      */
     private void sendChangeEvent() {
         if (this.eventAdmin != null) {
-            // we hard code the topic here and don't use
-            // SlingConstants.TOPIC_RESOURCE_RESOLVER_MAPPING_CHANGED
-            // to avoid requiring the latest API version for this bundle to work
-            final Event event = new Event("org/apache/sling/api/resource/ResourceResolverMapping/CHANGED",
+            final Event event = new Event(SlingConstants.TOPIC_RESOURCE_RESOLVER_MAPPING_CHANGED,
                             (Dictionary<?, ?>) null);
             this.eventAdmin.postEvent(event);
         }
@@ -434,7 +443,13 @@ public class MapEntries implements EventHandler {
             }
 
             // add resolution entries for this node
-            final MapEntry childResolveEntry = MapEntry.createResolveEntry(childPath, child, trailingSlash);
+            MapEntry childResolveEntry = null;
+            try{
+            	childResolveEntry=MapEntry.createResolveEntry(childPath, child, trailingSlash);
+            }catch (IllegalArgumentException iae){
+        		//ignore this entry
+        		log.debug("ignored entry due exception ",iae);
+        	}
             if (childResolveEntry != null) {
                 entries.add(childResolveEntry);
             }
@@ -454,6 +469,9 @@ public class MapEntries implements EventHandler {
      * Add an entry to the resolve map.
      */
     private void addEntry(final Map<String, List<MapEntry>> entryMap, final String key, final MapEntry entry) {
+    	if (entry==null){
+    		return;
+    	}
         List<MapEntry> entries = entryMap.get(key);
         if (entries == null) {
             entries = new ArrayList<MapEntry>();
@@ -495,12 +513,8 @@ public class MapEntries implements EventHandler {
                 resourceName = resource.getName();
             }
             Map<String, String> parentMap = map.get(parentPath);
-            if (parentMap == null) {
-                parentMap = new HashMap<String, String>();
-                map.put(parentPath, parentMap);
-            }
             for (final String alias : props.get(ResourceResolverImpl.PROP_ALIAS, String[].class)) {
-                if (parentMap.containsKey(alias)) {
+                if (parentMap != null && parentMap.containsKey(alias)) {
                     log.warn("Encountered duplicate alias {} under parent path {}. Refusing to replace current target {} with {}.", new Object[] {
                             alias,
                             parentPath,
@@ -508,7 +522,27 @@ public class MapEntries implements EventHandler {
                             resourceName
                     });
                 } else {
-                    parentMap.put(alias, resourceName);
+                    // check alias
+                    boolean invalid = alias.equals("..") || alias.equals(".");
+                    if ( !invalid ) {
+                        for(final char c : alias.toCharArray()) {
+                            // invalid if / or # or a ?
+                            if ( c == '/' || c == '#' || c == '?' ) {
+                                invalid = true;
+                                break;
+                            }
+                        }
+                    }
+                    if ( invalid ) {
+                        log.warn("Encountered invalid alias {} under parent path {}. Refusing to use it.",
+                                alias, parentPath);
+                    } else {
+                        if (parentMap == null) {
+                            parentMap = new HashMap<String, String>();
+                            map.put(parentPath, parentMap);
+                        }
+                        parentMap.put(alias, resourceName);
+                    }
                 }
             }
         }
@@ -560,27 +594,40 @@ public class MapEntries implements EventHandler {
                         // sling:vanityPath
                         // property (or its parent if the node is called
                         // jcr:content)
-                        final String redirect;
+                        final Resource redirectTarget;
                         if (resource.getName().equals("jcr:content")) {
-                            redirect = resource.getParent().getPath();
+                            redirectTarget = resource.getParent();
                         } else {
-                            redirect = resource.getPath();
+                            redirectTarget = resource;
                         }
+                        final String redirect = redirectTarget.getPath();
+                        final String redirectName = redirectTarget.getName();
 
-                        // whether the target is attained by a 302/FOUND or by an
-                        // internal redirect is defined by the sling:redirect
+                        // whether the target is attained by a external redirect or
+                        // by an internal redirect is defined by the sling:redirect
                         // property
                         final int status = props.get("sling:redirect", false) ? props.get(
-                                        PROP_REDIRECT_EXTERNAL_REDIRECT_STATUS, HttpServletResponse.SC_FOUND)
+                                        PROP_REDIRECT_EXTERNAL_REDIRECT_STATUS, factory.getDefaultVanityPathRedirectStatus())
                                         : -1;
 
                         final String checkPath = result[1];
-                        // 1. entry with exact match
-                        this.addEntry(entryMap, checkPath, new MapEntry(url + "$", status, false, redirect + ".html"));
 
-                        // 2. entry with match supporting selectors and extension
-                        this.addEntry(entryMap, checkPath, new MapEntry(url + "(\\..*)", status, false, redirect + "$1"));
+                        if (redirectName.indexOf('.') > -1) {
+                            // 1. entry with exact match
+                            this.addEntry(entryMap, checkPath, getMapEntry(url + "$", status, false, redirect));
 
+                            final int idx = redirectName.lastIndexOf('.');
+                            final String extension = redirectName.substring(idx + 1);
+
+                            // 2. entry with extension
+                            this.addEntry(entryMap, checkPath, getMapEntry(url + "\\." + extension, status, false, redirect));
+                        } else {
+                            // 1. entry with exact match
+                            this.addEntry(entryMap, checkPath, getMapEntry(url + "$", status, false, redirect + ".html"));
+
+                            // 2. entry with match supporting selectors and extension
+                            this.addEntry(entryMap, checkPath, getMapEntry(url + "(\\..*)", status, false, redirect + "$1"));
+                        }
                         // 3. keep the path to return
                         targetPaths.add(redirect);
                     }
@@ -645,7 +692,10 @@ public class MapEntries implements EventHandler {
                     // this regular expression must match the whole URL !!
                     final String url = "^" + ANY_SCHEME_HOST + extPath + "$";
                     final String redirect = intPath;
-                    entries.add(new MapEntry(url, -1, false, redirect));
+                    MapEntry mapEntry = getMapEntry(url, -1, false, redirect);
+                    if (mapEntry!=null){
+                    	entries.add(mapEntry);
+                    }
                 }
             }
         }
@@ -670,7 +720,10 @@ public class MapEntries implements EventHandler {
             }
 
             for (final Entry<String, List<String>> entry : map.entrySet()) {
-                entries.add(new MapEntry(ANY_SCHEME_HOST + entry.getKey(), -1, false, entry.getValue().toArray(new String[0])));
+            	MapEntry mapEntry = getMapEntry(ANY_SCHEME_HOST + entry.getKey(), -1, false, entry.getValue().toArray(new String[0]));
+            	if (mapEntry!=null){
+            		entries.add(mapEntry);
+            	}
             }
         }
     }
@@ -710,15 +763,17 @@ public class MapEntries implements EventHandler {
     private void addMapEntry(final Map<String, MapEntry> entries, final String path, final String url, final int status) {
         MapEntry entry = entries.get(path);
         if (entry == null) {
-            entry = new MapEntry(path, status, false, url);
+            entry = getMapEntry(path, status, false, url);
         } else {
             final String[] redir = entry.getRedirect();
             final String[] newRedir = new String[redir.length + 1];
             System.arraycopy(redir, 0, newRedir, 0, redir.length);
             newRedir[redir.length] = url;
-            entry = new MapEntry(entry.getPattern(), entry.getStatus(), false, newRedir);
+            entry = getMapEntry(entry.getPattern(), entry.getStatus(), false, newRedir);
         }
-        entries.put(path, entry);
+        if (entry!=null){
+        	entries.put(path, entry);
+        }
     }
 
     /**
@@ -727,22 +782,26 @@ public class MapEntries implements EventHandler {
      * modified JCR properties) this allows to only get events interesting for
      * updating the internal structure
      */
-    private static String createFilter() {
-        final String[] nodeProps = { "sling:vanityPath", "sling:vanityOrder",
+    private static String createFilter(final boolean vanityPathEnabled) {
+        final String[] nodeProps = {
                         PROP_REDIRECT_EXTERNAL_REDIRECT_STATUS, PROP_REDIRECT_EXTERNAL,
                         ResourceResolverImpl.PROP_REDIRECT_INTERNAL, PROP_REDIRECT_EXTERNAL_STATUS,
                         PROP_REG_EXP, ResourceResolverImpl.PROP_ALIAS };
-        final String[] eventProps = { "resourceAddedAttributes", "resourceChangedAttributes", "resourceRemovedAttributes" };
+        final String[] eventProps = { SlingConstants.PROPERTY_ADDED_ATTRIBUTES, SlingConstants.PROPERTY_CHANGED_ATTRIBUTES, SlingConstants.PROPERTY_REMOVED_ATTRIBUTES };
         final StringBuilder filter = new StringBuilder();
         filter.append("(|");
         for (final String eventProp : eventProps) {
             filter.append("(|");
+            if (  vanityPathEnabled ) {
+                filter.append('(').append(eventProp).append('=').append("sling:vanityPath").append(')');
+                filter.append('(').append(eventProp).append('=').append("sling:vanityOrder").append(')');
+            }
             for (final String nodeProp : nodeProps) {
                 filter.append('(').append(eventProp).append('=').append(nodeProp).append(')');
             }
             filter.append(")");
         }
-        filter.append("(" + EventConstants.EVENT_TOPIC + "=" + SlingConstants.TOPIC_RESOURCE_REMOVED + ")");
+        filter.append("(").append(EventConstants.EVENT_TOPIC).append("=").append(SlingConstants.TOPIC_RESOURCE_REMOVED).append(")");
         filter.append(")");
 
         return filter.toString();
@@ -845,4 +904,18 @@ public class MapEntries implements EventHandler {
             }
         }
     };
+
+    private MapEntry getMapEntry(String url, final int status, final boolean trailingSlash,
+            final String... redirect){
+
+    	MapEntry mapEntry = null;
+    	try{
+    		mapEntry = new MapEntry(url, status, trailingSlash, redirect);
+    	}catch (IllegalArgumentException iae){
+    		//ignore this entry
+    		log.debug("ignored entry due exception ",iae);
+    	}
+    	return mapEntry;
+    }
+
 }

@@ -22,12 +22,17 @@ import java.util.Iterator;
 
 import org.osgi.service.event.Event;
 
+import aQute.bnd.annotation.ProviderType;
+
 /**
  * This <code>Iterator</code> allows to iterate over {@link Event}s.
  * In addition to an iterator it might return the number of elements
  * in the collection and allows to skip several elements.
  * @since 3.0
+ * @deprecated - Use the new {@link JobManager#findJobs} methods instead.
  */
+@Deprecated
+@ProviderType
 public interface JobsIterator extends Iterator<Event>, Iterable<Event> {
 
     /**

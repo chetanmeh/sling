@@ -23,12 +23,12 @@
     <parent>
         <groupId>org.apache.sling</groupId>
         <artifactId>sling</artifactId>
-        <version>13</version>
+        <version>18</version>
         <relativePath>../../../parent/pom.xml</relativePath>
     </parent>
 
     <artifactId>org.apache.sling.installer.provider.jcr</artifactId>
-    <version>3.1.5-SNAPSHOT</version>
+    <version>3.1.7-SNAPSHOT</version>
     <packaging>bundle</packaging>
 
     <name>Apache Sling JCR Installer</name>
@@ -87,7 +87,7 @@
         <dependency>
             <groupId>org.apache.sling</groupId>
             <artifactId>org.apache.sling.installer.api</artifactId>
-            <version>1.0-SNAPSHOT</version>
+            <version>1.0.0</version>
             <scope>provided</scope>
         </dependency>
         <dependency>

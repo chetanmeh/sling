@@ -290,6 +290,16 @@ public interface SlingPostConstants {
      * not set or set to any other value.
      */
     public static final String RP_STATUS = RP_PREFIX + "status";
+    
+	/**
+     * Optional request parameter: defines if to enable the error handling 
+     * also for POST request. 
+     * The parameter value is checked to see if it matches the case-insensitive
+     * value true. 
+     * 
+     * @since 2.2.0 (Bundle version 2.3.0)
+     */
+    public static final String RP_SEND_ERROR = RP_PREFIX + "sendError";
 
     /**
      * The supported value for the {@link #RP_STATUS} request parameter
@@ -480,5 +490,73 @@ public interface SlingPostConstants {
      * @since 2.1.2
      */
     public static final String ATTR_SKIP_SESSION_HANDLING = "skip-session-handling";
+
+    /**
+     * Name of the request parameter indicating offset of the chunk in request.
+     * @since 2.3.4
+     */
+    public static final String SUFFIX_OFFSET = "@Offset";
+
+    /**
+     * Name of the request parameter indicating length of complete file.
+     * @since 2.3.4
+     */
+    public static final String SUFFIX_LENGTH = "@Length";
+
+    /**
+     * Name of the request parameter indicating request contains last chunk
+     * and as a result upload should be finished. It is useful in scenarios
+     * like file streaming where file size is not known in advance.
+     * @since 2.3.4
+     */
+    public static final String SUFFIX_COMPLETED = "@Completed";
+
+    /**
+     * Name of the request parameter indicating request operation is applicable
+     * to chunks.
+     * @since 2.3.4
+     */
+    public static final String RP_APPLY_TO_CHUNKS =  RP_PREFIX + "applyToChunks";
+
+    /**
+     * Constant for the sling:chunks mixin. Used to identify that node
+     * contains chunks.
+     * @since 2.3.4
+     */
+    public static final String NT_SLING_CHUNK_MIXIN = "sling:chunks";
+
+    /**
+     * Constant for the sling:fileLength property. The property stores file
+     * length.
+     * @since 2.3.4
+     */
+    public static final String NT_SLING_FILE_LENGTH = "sling:fileLength";
+
+    /**
+     * Constant for the sling:length property. The property stores
+     * cumulative length of all uploaded chunks.
+     * @since 2.3.4
+     */
+    public static final String NT_SLING_CHUNKS_LENGTH = "sling:length";
+
+    /**
+     * Constant for the sling:chunk node type. The node type is used
+     * to store chunk.
+     * @since 2.3.4
+     */
+    public static final String NT_SLING_CHUNK_NODETYPE = "sling:chunk";
+
+    /**
+     * Constant for the sling:offset property. The property stores start
+     * offset of chunk.
+     * @since 2.3.4
+     */
+    public static final String NT_SLING_CHUNK_OFFSET = "sling:offset";
+    
+    /**
+     * Constant for prefix for sling:chunk node name.
+     * @since 2.3.4
+     */
+    public static final String CHUNK_NODE_NAME = "chunk";
 
 }

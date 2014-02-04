@@ -31,3 +31,4 @@
 [sling:ResourceSuperType]
     mixin
   - sling:resourceSuperType (string)
+

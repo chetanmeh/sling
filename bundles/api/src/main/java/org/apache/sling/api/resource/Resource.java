@@ -20,6 +20,8 @@ import java.util.Iterator;
 
 import org.apache.sling.api.adapter.Adaptable;
 
+import aQute.bnd.annotation.ProviderType;
+
 /**
  * Resources are pieces of content on which Sling acts
  * <p>
@@ -33,6 +35,7 @@ import org.apache.sling.api.adapter.Adaptable;
  * suffering from missing method problems should the Sling Resource API be
  * extended in the future.
  */
+@ProviderType
 public interface Resource extends Adaptable {
 
     /**
@@ -81,6 +84,17 @@ public interface Resource extends Adaptable {
     Iterator<Resource> listChildren();
 
     /**
+     * Returns an iterable of the direct children of this resource.
+     * <p>
+     * This method is a convenience and returns exactly the same resources as
+     * calling <code>getResourceResolver().getChildren(resource)</code>.
+     *
+     * @since 2.2.0
+     * @see ResourceResolver#getChildren(Resource)
+     */
+    Iterable<Resource> getChildren();
+
+    /**
      * Returns the child at the given relative path of this resource or
      * <code>null</code> if no such child exists.
      * <p>
@@ -106,10 +120,22 @@ public interface Resource extends Adaptable {
     String getResourceType();
 
     /**
-     * Returns the super type of the type of the resource or <code>null</code>
-     * if the {@link #getResourceType()} has no supertype.
+     * Returns the super type of the resource if the resource defines its
+     * own super type. Otherwise <code>null</code> is returned.
+     * A resource might return a resource super type to overwrite the
+     * resource type hierarchy.
+     * If a client is interested in the effective resource super type
+     * of a resource, it should call {@link ResourceResolver#getParentResourceType(Resource)}.
      */
     String getResourceSuperType();
+
+    /**
+     * Checks if the resource has any child resources.
+     * 
+     * @return <code>true</code> if the resource has any child resources
+     * @since 2.4.4
+     */
+    boolean hasChildren();
 
     /**
      * Returns <code>true</code> if the resource type or any of the resource's

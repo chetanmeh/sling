@@ -19,7 +19,8 @@
 package org.apache.sling.api.resource;
 
 import java.util.Iterator;
-import java.util.Map;
+
+import aQute.bnd.annotation.ConsumerType;
 
 
 /**
@@ -31,6 +32,7 @@ import java.util.Map;
  *
  * @since 2.2.0
  */
+@ConsumerType
 public interface QueriableResourceProvider extends ResourceProvider {
 
     /**
@@ -47,7 +49,7 @@ public interface QueriableResourceProvider extends ResourceProvider {
      * <p>
      * The semantic meaning of the query and language depend on the actual
      * implementation and storage used for the resources. For JCR repository
-     * being used as storage, the query and lanuage parameters are used to
+     * being used as storage, the query and language parameters are used to
      * create a JCR <code>Query</code> through the <code>QueryManager</code>.
      * The result returned is then based on the <code>NodeIterator</code>
      * provided by the query result.
@@ -60,7 +62,7 @@ public interface QueriableResourceProvider extends ResourceProvider {
      * @throws QuerySyntaxException If the query is not syntactically correct
      *             according to the query language indicator or if the query
      *             language is not supported as specified in {@link #LANGUAGES}.
-     * @throws org.apache.sling.api.SlingException If an error occurrs querying
+     * @throws org.apache.sling.api.SlingException If an error occurs querying
      *             for the resources.
      * @throws IllegalStateException if this resource provider has already been
      *             closed.
@@ -73,7 +75,7 @@ public interface QueriableResourceProvider extends ResourceProvider {
      * <p>
      * The semantic meaning of the query and language depend on the actual
      * implementation and storage used for the resources. For JCR repository
-     * being used as storage, the query and lanuage parameters are used to
+     * being used as storage, the query and language parameters are used to
      * create a JCR <code>Query</code> through the <code>QueryManager</code>.
      * The result returned is then based on the <code>RowIterator</code>
      * provided by the query result. The map returned for each row is indexed by
@@ -89,10 +91,10 @@ public interface QueriableResourceProvider extends ResourceProvider {
      * @throws QuerySyntaxException If the query is not syntactically correct
      *             according to the query language indicator or if the query
      *             language is not supported as specified in {@link #LANGUAGES}.
-     * @throws org.apache.sling.api.SlingException If an error occurrs querying
+     * @throws org.apache.sling.api.SlingException If an error occurs querying
      *             for the resources.
      * @throws IllegalStateException if this resource provider has already been
      *             closed.
      */
-    Iterator<Map<String, Object>> queryResources(ResourceResolver resolver, String query, String language);
+    Iterator<ValueMap> queryResources(ResourceResolver resolver, String query, String language);
 }

@@ -23,13 +23,16 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Set;
 
 import org.apache.sling.api.resource.QueriableResourceProvider;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceProvider;
 import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.api.security.ResourceAccessSecurity;
 import org.apache.sling.commons.osgi.PropertiesUtil;
+import org.apache.sling.resourceresolver.impl.ResourceAccessSecurityTracker;
 import org.apache.sling.resourceresolver.impl.helper.ResourceResolverContext;
 import org.osgi.framework.Constants;
 
@@ -54,6 +57,9 @@ public abstract class ProviderHandler implements Comparable<ProviderHandler> {
 
     /** Owns roots? */
     private final boolean ownsRoots;
+
+    /** use ResourceAccessSecurity? */
+    private final boolean useResourceAccessSecurity;
 
     /**
      * Create a new handler
@@ -85,12 +91,13 @@ public abstract class ProviderHandler implements Comparable<ProviderHandler> {
             this.roots = configuredRoots.toArray(new String[configuredRoots.size()]);
         }
         this.ownsRoots = PropertiesUtil.toBoolean(properties.get(ResourceProvider.OWNS_ROOTS), false);
+        this.useResourceAccessSecurity = PropertiesUtil.toBoolean(properties.get(ResourceProvider.USE_RESOURCE_ACCESS_SECURITY), false);
         final Set<String> configuredLanguages = new HashSet<String>();
         final String[] languages = PropertiesUtil.toStringArray(properties.get(QueriableResourceProvider.LANGUAGES));
         if ( languages != null) {
             for(final String l : languages) {
                 if (l != null) {
-                    String language = l.trim();
+                    final String language = l.trim();
                     if ( language.length() > 0 ) {
                         configuredLanguages.add(language);
                     }
@@ -102,6 +109,119 @@ public abstract class ProviderHandler implements Comparable<ProviderHandler> {
         } else {
             this.queryLanguages = configuredLanguages;
         }
+    }
+
+    public boolean canCreate(final ResourceResolverContext ctx, final ResourceResolver resolver, final String path) {
+        final ResourceAccessSecurityTracker tracker = ctx.getResourceAccessSecurityTracker();
+        boolean allowed = true;
+        if ( useResourceAccessSecurity ) {
+            final ResourceAccessSecurity security = tracker.getProviderResourceAccessSecurity();
+            if ( security != null ) {
+                allowed = security.canCreate(path, resolver);
+            } else {
+                allowed = false;
+            }
+        }
+
+        if ( allowed ) {
+            final ResourceAccessSecurity security = tracker.getApplicationResourceAccessSecurity();
+            if (security != null) {
+                allowed = security.canCreate(path, resolver);
+            }
+        }
+        return allowed;
+    }
+
+    public boolean canDelete(final ResourceResolverContext ctx, final Resource resource) {
+        final ResourceAccessSecurityTracker tracker = ctx.getResourceAccessSecurityTracker();
+        boolean allowed = true;
+        if ( useResourceAccessSecurity ) {
+            final ResourceAccessSecurity security = tracker.getProviderResourceAccessSecurity();
+            if ( security != null ) {
+                allowed = security.canDelete(resource);
+            } else {
+                allowed = false;
+            }
+        }
+
+        if ( allowed ) {
+            final ResourceAccessSecurity security = tracker.getApplicationResourceAccessSecurity();
+            if (security != null) {
+                allowed = security.canDelete(resource);
+            }
+        }
+        return allowed;
+    }
+
+    /**
+     * applies resource access security if configured
+     */
+    protected Resource getReadableResource ( final ResourceResolverContext ctx, Resource resource ) {
+        final ResourceAccessSecurityTracker tracker = ctx.getResourceAccessSecurityTracker();
+
+        Resource returnValue = null;
+
+        if (useResourceAccessSecurity && resource != null) {
+            final ResourceAccessSecurity resourceAccessSecurity = tracker.getProviderResourceAccessSecurity();
+            if (resourceAccessSecurity != null) {
+                returnValue = resourceAccessSecurity.getReadableResource(resource);
+            }
+        } else {
+            returnValue = resource;
+        }
+
+        if ( returnValue != null ) {
+            final ResourceAccessSecurity resourceAccessSecurity = tracker.getApplicationResourceAccessSecurity();
+            if (resourceAccessSecurity != null) {
+                returnValue = resourceAccessSecurity.getReadableResource(resource);
+            }
+        }
+
+        return ctx.applyFeatures(returnValue);
+    }
+
+    /**
+     * applies resource access security if configured
+     */
+    protected Iterator<Resource> getReadableChildrenIterator ( final ResourceResolverContext ctx, final Iterator<Resource> childrenIterator ) {
+        Iterator<Resource> returnValue = null;
+        if ( childrenIterator != null ) {
+            returnValue = new Iterator<Resource>() {
+
+                private Resource nextResource;
+
+                {
+                    seek();
+                }
+
+                private void seek() {
+                    while( nextResource == null && childrenIterator.hasNext() ) {
+                        nextResource = getReadableResource(ctx, childrenIterator.next());
+                    }
+                }
+
+                public boolean hasNext() {
+                    return nextResource != null;
+                }
+
+                public Resource next() {
+                    if ( nextResource == null ) {
+                        throw new NoSuchElementException();
+                    }
+                    final Resource result = nextResource;
+                    nextResource = null;
+                    seek();
+                    return result;
+                }
+
+                public void remove() {
+                    throw new UnsupportedOperationException();
+                }
+
+            };
+        }
+
+        return returnValue;
     }
 
     /**

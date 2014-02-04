@@ -23,12 +23,12 @@
     <parent>
         <groupId>org.apache.sling</groupId>
         <artifactId>sling</artifactId>
-        <version>13</version>
+        <version>18</version>
         <relativePath>../../../parent/pom.xml</relativePath>
     </parent>
 
     <artifactId>org.apache.sling.fragment.activation</artifactId>
-    <version>1.0.1-SNAPSHOT</version>
+    <version>1.0.3-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>Apache Sling System Bundle Extension: Activation API</name>
@@ -47,7 +47,7 @@
     </scm>
 
     <properties>
-        <fragment.activation.version>0.0.0.fragment_activation</fragment.activation.version>
+        <fragment.activation.version>1.1.0</fragment.activation.version>
     </properties>
 
     <build>

@@ -27,71 +27,143 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.List;
 
+import org.apache.felix.scr.annotations.Activate;
 import org.apache.felix.scr.annotations.Component;
+import org.apache.felix.scr.annotations.Deactivate;
 import org.apache.felix.scr.annotations.Property;
+import org.apache.felix.scr.annotations.Reference;
 import org.apache.felix.scr.annotations.Service;
 import org.apache.sling.commons.classloader.ClassLoaderWriter;
-import org.apache.sling.commons.classloader.DynamicClassLoaderProvider;
+import org.apache.sling.commons.classloader.DynamicClassLoaderManager;
+import org.osgi.framework.Bundle;
+import org.osgi.framework.Constants;
+import org.osgi.framework.ServiceReference;
 import org.osgi.service.component.ComponentContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * The <code>FSClassLoaderProvider</code> is a dynamic class loader privder
+ * The <code>FSClassLoaderProvider</code> is a dynamic class loader provider
  * which uses the file system to store and read class files from.
  *
  */
 @Component
-@Service
-@Property( name="service.vendor", value="The Apache Software Foundation")
+@Service(value={ClassLoaderWriter.class}, serviceFactory = true)
+@Property( name=Constants.SERVICE_RANKING, intValue=100)
 public class FSClassLoaderProvider
-    implements DynamicClassLoaderProvider, ClassLoaderWriter {
+    implements ClassLoaderWriter {
 
     /** File root */
     private File root;
 
-    /** All classloaders */
-    private List<FSDynamicClassLoader> loaders = new ArrayList<FSDynamicClassLoader>();
+    /** File root URL */
+    private URL rootURL;
+
+    /** Current class loader */
+    private FSDynamicClassLoader loader;
+
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
+
+    @Reference(
+            referenceInterface = DynamicClassLoaderManager.class,
+            bind = "bindDynamicClassLoaderManager",
+            unbind = "unbindDynamicClassLoaderManager")
+    private ServiceReference dynamicClassLoaderManager;
+
+    /** The bundle asking for this service instance */
+    private Bundle callerBundle;
 
     /**
-     * @see org.apache.sling.commons.classloader.DynamicClassLoaderProvider#getClassLoader(ClassLoader)
+     * Activate this component.
+     * Create the root directory.
+     * @param componentContext
+     * @throws MalformedURLException
      */
-    public ClassLoader getClassLoader(final ClassLoader parent) {
-        try {
-            final FSDynamicClassLoader cl = new FSDynamicClassLoader(new URL[] {this.root.toURL()}, parent);
-            synchronized ( this.loaders ) {
-                this.loaders.add(cl);
+    @Activate
+    protected void activate(final ComponentContext componentContext) throws MalformedURLException {
+        // get the file root
+        this.root = new File(componentContext.getBundleContext().getDataFile(""), "classes");
+        this.root.mkdirs();
+        this.rootURL = this.root.toURI().toURL();
+        this.callerBundle = componentContext.getUsingBundle();
+    }
+
+    /**
+     * Deactivate this component.
+     * Create the root directory.
+     */
+    @Deactivate
+    protected void deactivate() {
+        this.root = null;
+        this.rootURL = null;
+        this.destroyClassLoader();
+    }
+
+    /**
+     * Called to handle binding the DynamicClassLoaderManager service
+     * reference
+     */
+    @SuppressWarnings("unused")
+    private void bindDynamicClassLoaderManager(final ServiceReference ref) {
+        this.dynamicClassLoaderManager = ref;
+    }
+
+    /**
+     * Called to handle unbinding of the DynamicClassLoaderManager service
+     * reference
+     */
+    @SuppressWarnings("unused")
+    private void unbindDynamicClassLoaderManager(final ServiceReference ref) {
+        if (this.dynamicClassLoaderManager == ref) {
+            this.dynamicClassLoaderManager = null;
+        }
+    }
+
+    private void destroyClassLoader() {
+        final ClassLoader rcl = this.loader;
+        if (rcl != null) {
+            this.loader = null;
+
+            final ServiceReference localDynamicClassLoaderManager = this.dynamicClassLoaderManager;
+            final Bundle localCallerBundle = this.callerBundle;
+            if ( localDynamicClassLoaderManager != null && localCallerBundle != null ) {
+                localCallerBundle.getBundleContext().ungetService(localDynamicClassLoaderManager);
             }
-            return cl;
-        } catch (MalformedURLException e) {
-            // this should never happen, but who knows
-            throw new RuntimeException(e);
         }
     }
 
     /**
-     * @see org.apache.sling.commons.classloader.DynamicClassLoaderProvider#release(java.lang.ClassLoader)
+     * @see org.apache.sling.commons.classloader.ClassLoaderWriter#getClassLoader()
      */
-    public void release(final ClassLoader classLoader) {
-        synchronized ( this.loaders ) {
-            this.loaders.remove(classLoader);
+    public ClassLoader getClassLoader() {
+        synchronized ( this ) {
+            if ( loader == null || !loader.isLive() ) {
+                this.destroyClassLoader();
+                // get the dynamic class loader for the bundle using this
+                // class loader writer
+                final DynamicClassLoaderManager dclm = (DynamicClassLoaderManager) this.callerBundle.getBundleContext().getService(
+                    this.dynamicClassLoaderManager);
+
+                loader = new FSDynamicClassLoader(new URL[] {this.rootURL}, dclm.getDynamicClassLoader());
+            }
+            return this.loader;
         }
     }
 
-    private void checkClassLoaders(final String filePath) {
-        if ( filePath.endsWith(".class") ) {
-            // remove store directory and .class
-            final String path = filePath.substring(this.root.getAbsolutePath().length() + 1, filePath.length() - 6);
-            // convert to a class name
-            final String className = path.replace(File.separatorChar, '.');
-            synchronized ( this.loaders ) {
-                for(final FSDynamicClassLoader cl : this.loaders ) {
-                    cl.check(className);
-                }
+    private void checkClassLoader(final String filePath) {
+        synchronized ( this ) {
+            final FSDynamicClassLoader currentLoader = this.loader;
+            if ( currentLoader != null && filePath.endsWith(".class") ) {
+                // remove store directory and .class
+                final String path = filePath.substring(this.root.getAbsolutePath().length() + 1, filePath.length() - 6);
+                // convert to a class name
+                final String className = path.replace(File.separatorChar, '.');
+                currentLoader.check(className);
             }
         }
     }
+
     //---------- SCR Integration ----------------------------------------------
 
     /**
@@ -102,9 +174,12 @@ public class FSClassLoaderProvider
         final File file = new File(path);
         if ( file.exists() ) {
             final boolean result = file.delete();
+            logger.debug("Deleted {} : {}", name,result);
             if ( result ) {
-                this.checkClassLoaders(file.getAbsolutePath());
+                this.checkClassLoader(file.getAbsolutePath());
             }
+
+            return result;
         }
         // file does not exist so we return false
         return false;
@@ -114,6 +189,7 @@ public class FSClassLoaderProvider
      * @see org.apache.sling.commons.classloader.ClassLoaderWriter#getOutputStream(java.lang.String)
      */
     public OutputStream getOutputStream(final String name) {
+        logger.debug("Get stream for {}", name);
         final String path = cleanPath(name);
         final File file = new File(path);
         final File parentDir = file.getParentFile();
@@ -122,7 +198,7 @@ public class FSClassLoaderProvider
         }
         try {
             if ( file.exists() ) {
-                this.checkClassLoaders(path);
+                this.checkClassLoader(path);
             }
             return new FileOutputStream(path);
         } catch (FileNotFoundException e) {
@@ -134,12 +210,14 @@ public class FSClassLoaderProvider
      * @see org.apache.sling.commons.classloader.ClassLoaderWriter#rename(java.lang.String, java.lang.String)
      */
     public boolean rename(final String oldName, final String newName) {
+        logger.debug("Rename {} to {}", oldName, newName);
         final String oldPath = cleanPath(oldName);
         final String newPath = cleanPath(newName);
         final File old = new File(oldPath);
         final boolean result = old.renameTo(new File(newPath));
         if ( result ) {
-            this.checkClassLoaders(oldPath);
+            this.checkClassLoader(oldPath);
+            this.checkClassLoader(newPath);
         }
         return result;
     }
@@ -169,6 +247,7 @@ public class FSClassLoaderProvider
      */
     public InputStream getInputStream(final String name)
     throws IOException {
+        logger.debug("Get input stream of {}", name);
         final String path = cleanPath(name);
         final File file = new File(path);
         return new FileInputStream(file);
@@ -178,6 +257,7 @@ public class FSClassLoaderProvider
      * @see org.apache.sling.commons.classloader.ClassLoaderWriter#getLastModified(java.lang.String)
      */
     public long getLastModified(final String name) {
+        logger.debug("Get last modified of {}", name);
         final String path = cleanPath(name);
         final File file = new File(path);
         if ( file.exists() ) {
@@ -186,25 +266,5 @@ public class FSClassLoaderProvider
 
         // fallback to "non-existant" in case of problems
         return -1;
-    }
-
-    /**
-     * Activate this component.
-     * Create the root directory.
-     * @param componentContext
-     */
-    protected void activate(final ComponentContext componentContext) {
-        // get the file root
-        this.root = new File(componentContext.getBundleContext().getDataFile(""), "classes");
-        this.root.mkdirs();
-    }
-
-    /**
-     * Deactivate this component.
-     * Create the root directory.
-     * @param componentContext
-     */
-    protected void deactivate(final ComponentContext componentContext) {
-        this.root = null;
     }
 }
