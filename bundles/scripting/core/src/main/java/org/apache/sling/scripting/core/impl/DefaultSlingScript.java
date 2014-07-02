@@ -18,16 +18,8 @@
  */
 package org.apache.sling.scripting.core.impl;
 
-import static org.apache.sling.api.scripting.SlingBindings.FLUSH;
-import static org.apache.sling.api.scripting.SlingBindings.LOG;
-import static org.apache.sling.api.scripting.SlingBindings.OUT;
-import static org.apache.sling.api.scripting.SlingBindings.READER;
-import static org.apache.sling.api.scripting.SlingBindings.REQUEST;
-import static org.apache.sling.api.scripting.SlingBindings.RESOURCE;
-import static org.apache.sling.api.scripting.SlingBindings.RESPONSE;
-import static org.apache.sling.api.scripting.SlingBindings.SLING;
-
 import java.io.BufferedReader;
+import java.io.FilterReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -46,6 +38,8 @@ import java.util.Map;
 import java.util.Set;
 
 import javax.script.Bindings;
+import javax.script.Compilable;
+import javax.script.CompiledScript;
 import javax.script.Invocable;
 import javax.script.ScriptContext;
 import javax.script.ScriptEngine;
@@ -72,10 +66,22 @@ import org.apache.sling.api.scripting.SlingScript;
 import org.apache.sling.api.scripting.SlingScriptConstants;
 import org.apache.sling.api.scripting.SlingScriptHelper;
 import org.apache.sling.scripting.api.BindingsValuesProvider;
+import org.apache.sling.scripting.api.ScriptNameAware;
+import org.apache.sling.scripting.core.impl.helper.CachedScript;
 import org.apache.sling.scripting.core.impl.helper.ProtectedBindings;
+import org.apache.sling.scripting.core.impl.helper.ScriptCache;
 import org.osgi.framework.BundleContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static org.apache.sling.api.scripting.SlingBindings.FLUSH;
+import static org.apache.sling.api.scripting.SlingBindings.LOG;
+import static org.apache.sling.api.scripting.SlingBindings.OUT;
+import static org.apache.sling.api.scripting.SlingBindings.READER;
+import static org.apache.sling.api.scripting.SlingBindings.REQUEST;
+import static org.apache.sling.api.scripting.SlingBindings.RESOURCE;
+import static org.apache.sling.api.scripting.SlingBindings.RESPONSE;
+import static org.apache.sling.api.scripting.SlingBindings.SLING;
 
 class DefaultSlingScript implements SlingScript, Servlet, ServletConfig {
 
@@ -116,6 +122,8 @@ class DefaultSlingScript implements SlingScript, Servlet, ServletConfig {
     /** The cache for services. */
     private final ServiceCache cache;
 
+    private final ScriptCache scriptCache;
+
     /**
      * Constructor
      * @param bundleContext The bundle context
@@ -128,12 +136,14 @@ class DefaultSlingScript implements SlingScript, Servlet, ServletConfig {
             final Resource scriptResource,
             final ScriptEngine scriptEngine,
             final Collection<BindingsValuesProvider> bindingsValuesProviders,
-            final ServiceCache cache) {
+            final ServiceCache cache,
+            final ScriptCache scriptCache) {
         this.scriptResource = scriptResource;
         this.scriptEngine = scriptEngine;
         this.bundleContext = bundleContext;
         this.bindingsValuesProviders = bindingsValuesProviders;
         this.cache = cache;
+        this.scriptCache = scriptCache;
         this.scriptName = this.scriptResource.getPath();
         // Now know how to get the input stream, we still have to decide
         // on the encoding of the stream's data. Primarily we assume it is
@@ -357,8 +367,31 @@ class DefaultSlingScript implements SlingScript, Servlet, ServletConfig {
                 reader = getWrapperReader(reader, method, args);
             }
 
-            // evaluate the script
-            final Object result = scriptEngine.eval(reader, ctx);
+            final Object result;
+            if (method == null
+                    && this.scriptEngine instanceof Compilable
+                    && scriptCache.isCacheable(scriptResource)) {
+                CachedScript cachedScript = scriptCache.get(scriptName);
+                if (cachedScript != null && cachedScript.isStale(scriptResource)) {
+                    scriptCache.remove(scriptName);
+                    cachedScript = null;
+                    LOGGER.debug("Cached entry found to be stale for {}. Invalidating it", scriptName);
+                }
+
+                if (cachedScript == null) {
+                    CompiledScript compiledScript =
+                            ((Compilable) scriptEngine).compile(getNameAwareReader(reader));
+                    cachedScript = new CachedScript(compiledScript);
+                    scriptCache.put(scriptName, cachedScript);
+                    LOGGER.debug("Cached the compiled script for {}", scriptName);
+                } else {
+                    LOGGER.debug("Obtained cached script for {}", scriptName);
+                }
+
+                result = cachedScript.getScript().eval(ctx);
+            } else {
+                result = scriptEngine.eval(reader, ctx);
+            }
 
             // call method - if supplied and script engine supports direct invocation
             if ( method != null && (this.scriptEngine instanceof Invocable)) {
@@ -538,6 +571,10 @@ class DefaultSlingScript implements SlingScript, Servlet, ServletConfig {
         // converting the stream data using UTF-8 encoding, which is
         // the default encoding used
         return new BufferedReader(new InputStreamReader(new LazyInputStream(this.scriptResource), this.scriptEncoding));
+    }
+
+    private Reader getNameAwareReader(final Reader scriptReader){
+        return new NameAwareReader(scriptReader, scriptName);
     }
 
     private Reader getWrapperReader(final Reader scriptReader, final String method, final Object... args) {
@@ -873,6 +910,19 @@ class DefaultSlingScript implements SlingScript, Servlet, ServletConfig {
         @Override
         public ResourceResolver getResourceResolver() {
             return this.resolver;
+        }
+    }
+
+    private static class NameAwareReader extends FilterReader implements ScriptNameAware {
+        private final String scriptName;
+        protected NameAwareReader(Reader in, String scriptName) {
+            super(in);
+            this.scriptName = scriptName;
+        }
+
+        @Override
+        public String getScriptName() {
+            return scriptName;
         }
     }
 }

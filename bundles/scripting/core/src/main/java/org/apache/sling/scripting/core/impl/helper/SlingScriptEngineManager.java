@@ -29,8 +29,10 @@ import javax.script.ScriptEngineManager;
 
 public class SlingScriptEngineManager extends ScriptEngineManager {
 
+    public static final int CACHE_SIZE = 100;
     private final List<ScriptEngineFactory> factories = new ArrayList<ScriptEngineFactory>();
     private final Map<ScriptEngineFactory, Map<Object, Object>> factoryProperties = new HashMap<ScriptEngineFactory, Map<Object, Object>>();
+    private final ScriptCache cache = new ScriptCache(CACHE_SIZE);
 
     public SlingScriptEngineManager(ClassLoader classLoader) {
         super(classLoader);
@@ -74,4 +76,7 @@ public class SlingScriptEngineManager extends ScriptEngineManager {
         }
     }
 
+    public ScriptCache getCache() {
+        return cache;
+    }
 }

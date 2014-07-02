@@ -88,7 +88,8 @@ public class SlingScriptAdapterFactory implements AdapterFactory, MimeTypeProvid
                     bindingsValuesProviderTracker.getBindingsValuesProviders(engine.getFactory(), BINDINGS_CONTEXT);
             // unchecked cast
             return (AdapterType) new DefaultSlingScript(this.bundleContext,
-                    resource, engine, bindingsValuesProviders, this.serviceCache);
+                    resource, engine, bindingsValuesProviders, this.serviceCache,
+                    scriptEngineManager.getCache());
         }
 
         return null;
